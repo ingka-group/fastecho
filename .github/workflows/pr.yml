@@ -12,4 +12,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ingka-group-digital/ocp-pipelines/.github/actions/pre-commit@main
+      - uses: ingka-group-digital/ocp-pipelines/.github/actions/go-pr@main
+        with:
+          run_sonar_scanner: false

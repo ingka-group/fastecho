@@ -11,6 +11,10 @@ updates:
       - github
     schedule:
       interval: "weekly"
+    ignore:
+      # Semantic versioning is MAJOR.MINOR.PATCH we ignore PATCH updates:
+      - dependency-name: "*"
+        update-types: [ "version-update:semver-patch" ]
     open-pull-requests-limit: 5
 
   # Docker
