@@ -3,7 +3,7 @@ name: 🔖 Versioning
 on:
   push:
     branches:
-      - versioning
+      - thzois-patch-1
 
 jobs:
   versioning:
