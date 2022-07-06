@@ -19,9 +19,9 @@ var (
 
 // Bucket is the interface defining the interaction with GCS buckets
 type Bucket interface {
-	read(ctx context.Context, bucketName, filePath string) ([]byte, error)
-	write(ctx context.Context, bucketName, filePath string, data []byte) error
-	delete(ctx context.Context, bucketName, filePath string) error
+	Read(ctx context.Context, bucketName, filePath string) ([]byte, error)
+	Write(ctx context.Context, bucketName, filePath string, data []byte) error
+	Delete(ctx context.Context, bucketName, filePath string) error
 }
 
 // Client is the struct that contains the GCS (Google Cloud Storage) client connection
@@ -40,8 +40,8 @@ func NewClient(ctx context.Context) (*Client, error) {
 	}, nil
 }
 
-// read returns data present on a cloud bucket
-func (c *Client) read(ctx context.Context, bucketName, filePath string) ([]byte, error) {
+// Read returns data present on a cloud bucket
+func (c *Client) Read(ctx context.Context, bucketName, filePath string) ([]byte, error) {
 	reader, err := c.client.Bucket(bucketName).Object(filePath).NewReader(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not read bucket: %w", err)
@@ -59,8 +59,8 @@ func (c *Client) read(ctx context.Context, bucketName, filePath string) ([]byte,
 	return bytes, nil
 }
 
-// write stores the given data to a cloud bucket
-func (c *Client) write(ctx context.Context, bucketName, filePath string, data []byte) error {
+// Write stores the given data to a cloud bucket
+func (c *Client) Write(ctx context.Context, bucketName, filePath string, data []byte) error {
 	writer := c.client.Bucket(bucketName).Object(filePath).NewWriter(ctx)
 	writer.ContentType = "application/json"
 
@@ -75,8 +75,8 @@ func (c *Client) write(ctx context.Context, bucketName, filePath string, data []
 	return nil
 }
 
-// delete removes the data present on a cloud bucket
-func (c *Client) delete(ctx context.Context, bucketName, filePath string) error {
+// Delete removes the data present on a cloud bucket
+func (c *Client) Delete(ctx context.Context, bucketName, filePath string) error {
 	err := c.client.Bucket(bucketName).Object(filePath).Delete(ctx)
 	if err != nil {
 		if errors.Is(err, storage.ErrObjectNotExist) {
