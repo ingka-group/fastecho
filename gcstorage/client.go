@@ -24,7 +24,7 @@ type Bucket interface {
 	Delete(ctx context.Context, bucketName, filePath string) error
 }
 
-// Client is the struct that contains the GCS (Google Cloud Storage) client connection
+// Client is the struct that implements the Bucket interface, holding the connection to the GCS
 type Client struct {
 	client *storage.Client
 }
