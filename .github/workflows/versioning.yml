@@ -18,4 +18,4 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           WITH_V: true
           RELEASE_BRANCHES: main
-          DEFAULT_BUMP: patch
+          DEFAULT_BUMP: minor
