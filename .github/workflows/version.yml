@@ -1,4 +1,4 @@
-name: version
+name: 🔖 Versioning
 
 on:
   push:
@@ -7,14 +7,14 @@ on:
   pull_request:
 
 jobs:
-  version:
+  versioning:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source code
         uses: actions/checkout@v3
 
       - name: Bump version and push tag
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/version'
         uses: anothrNick/github-tag-action@1.26.0
         env:
           GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
