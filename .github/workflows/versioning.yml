@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
 
 jobs:
   versioning:
@@ -18,5 +17,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           WITH_V: true
-          RELEASE_BRANCHES: version
+          RELEASE_BRANCHES: main
           DEFAULT_BUMP: patch
