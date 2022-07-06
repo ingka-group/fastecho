@@ -19,9 +19,9 @@ var (
 
 // Bucket is the interface defining the interaction with GCS buckets
 type Bucket interface {
-	Read(ctx context.Context, bucketName, filePath string) ([]byte, error)
-	Write(ctx context.Context, bucketName, filePath string, data []byte) error
-	Delete(ctx context.Context, bucketName, filePath string) error
+	Read(context.Context, string, string) ([]byte, error)
+	Write(context.Context, string, string, []byte) error
+	Delete(context.Context, string, string) error
 }
 
 // Client is the struct that implements the Bucket interface, holding the connection to the GCS
