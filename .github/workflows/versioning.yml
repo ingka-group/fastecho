@@ -3,7 +3,7 @@ name: 🔖 Versioning
 on:
   push:
     branches:
-      - thzois-patch-1
+      - main
 
 jobs:
   versioning:
@@ -20,4 +20,4 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           WITH_V: true
           RELEASE_BRANCHES: main
-          DEFAULT_BUMP: patch
+          DEFAULT_BUMP: minor
