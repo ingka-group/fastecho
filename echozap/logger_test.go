@@ -68,23 +68,23 @@ func TestZapLoggerWithConfig(t *testing.T) {
 
 func TestNewServerLogger(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       string
+		name    string
+		envType string
 	}{
 		{
-			name:  "Log message NON-PROD env happy path",
-			input: "dev",
+			name:    "Log message NON-PROD env happy path",
+			envType: "dev",
 		},
 		{
-			name:  "Log message PROD env happy path",
-			input: "prod",
+			name:    "Log message PROD env happy path",
+			envType: "prod",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			obs, logs := observer.New(zap.DebugLevel)
-			serverLogger, err := NewServerLogger(EnvTypeFromString(test.input))
+			serverLogger, err := NewServerLogger(EnvTypeFromString(test.envType))
 			assert.NoError(t, err)
 
 			logger := zap.New(zapcore.NewTee(serverLogger.Core(), obs))
