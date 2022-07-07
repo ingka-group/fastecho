@@ -35,7 +35,7 @@ func (c *Client) Request(req *http.Request) (*HTTPResponse, []byte, error) {
 	}
 
 	defer func(Body io.ReadCloser) error {
-		err := Body.Close()
+		err = Body.Close()
 		if err != nil {
 			return fmt.Errorf("error while closing request body: %w", err)
 		}
