@@ -34,14 +34,12 @@ func (c *Client) Request(req *http.Request) (*HTTPResponse, []byte, error) {
 		return nil, nil, fmt.Errorf("error while executing HTTP request: %w", err)
 	}
 
-	defer func(Body io.ReadCloser) error {
-		err = Body.Close()
-		if err != nil {
-			return fmt.Errorf("error while closing request body: %w", err)
+	defer func(body io.Closer) {
+		if err = body.Close(); err != nil {
+			err = fmt.Errorf("error while closing request body: %w", err)
 		}
-
-		return nil
 	}(resp.Body)
+
 	if err != nil {
 		return nil, nil, err
 	}
