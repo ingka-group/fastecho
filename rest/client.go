@@ -7,29 +7,31 @@ import (
 	"net/http"
 )
 
+// HTTPResponse is an alias for http.Response
+type HTTPResponse http.Response
+
 // RESTDoer is the interface that defines the way to perform HTTP requests
 type RESTDoer interface {
-	Do(*http.Request) (*http.Response, error)
+	Request(req *http.Request) (*HTTPResponse, []byte, error)
 }
 
-// Client is the struct that performs the HTTP requests
+// Client is the struct that implements the RESTDoer
 type Client struct {
-	url    string
-	client RESTDoer
+	client *http.Client
 }
 
 // NewClient creates a new Client
-func NewClient(url string) *Client {
+func NewClient() *Client {
 	return &Client{
-		url:    url,
 		client: &http.Client{},
 	}
 }
 
-func (c *Client) doRequest(r *http.Request) ([]byte, int, error) {
-	resp, err := c.client.Do(r)
+// Request performs an HTTP request
+func (c *Client) Request(req *http.Request) (*HTTPResponse, []byte, error) {
+	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, http.StatusInternalServerError, fmt.Errorf("error while executing HTTP request: %w", err)
+		return nil, nil, fmt.Errorf("error while executing HTTP request: %w", err)
 	}
 
 	defer func(Body io.ReadCloser) error {
@@ -43,19 +45,13 @@ func (c *Client) doRequest(r *http.Request) ([]byte, int, error) {
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, http.StatusInternalServerError, fmt.Errorf("error while reading request body: %w", err)
+		return nil, nil, fmt.Errorf("error while reading request body: %w", err)
 	}
 
-	return body, resp.StatusCode, nil
+	return (*HTTPResponse)(resp), body, nil
 }
 
-// SetClient sets the REST client, useful for mocking
-func (c *Client) SetClient(r RESTDoer) *Client {
-	c.client = r
-	return c
-}
-
-// IsSuccessStatusCode returns whether a status code is successful
-func IsSuccessStatusCode(c int) bool {
-	return c >= 200 && c < 300
+// HasSuccessStatusCode returns whether a status code is successful
+func (r *HTTPResponse) HasSuccessStatusCode() bool {
+	return r.StatusCode >= 200 && r.StatusCode < 300
 }
