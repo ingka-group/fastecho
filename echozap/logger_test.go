@@ -81,6 +81,7 @@ func TestNewServerLogger(t *testing.T) {
 			input: "prod",
 		},
 	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			obs, logs := observer.New(zap.DebugLevel)
