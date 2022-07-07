@@ -42,6 +42,9 @@ func (c *Client) Request(req *http.Request) (*HTTPResponse, []byte, error) {
 
 		return nil
 	}(resp.Body)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
