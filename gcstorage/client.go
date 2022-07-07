@@ -44,7 +44,7 @@ func NewClient(ctx context.Context) (*Client, error) {
 func (c *Client) Read(ctx context.Context, bucketName, filePath string) ([]byte, error) {
 	reader, err := c.client.Bucket(bucketName).Object(filePath).NewReader(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("could not read bucket: %w", err)
+		return nil, fmt.Errorf("could not create a bucket reader: %w", err)
 	}
 
 	bytes, err := ioutil.ReadAll(reader)
