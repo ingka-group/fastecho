@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 )
 
@@ -63,4 +64,37 @@ func TestZapLoggerWithConfig(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, 0, logs.Len())
+}
+
+func TestNewServerLogger(t *testing.T) {
+
+	tests := []struct {
+		name        string
+		expectError bool
+		input       string
+	}{
+		{
+			name:  "Log message NON-PROD env happy path",
+			input: "dev",
+		},
+		{
+			name:  "Log message PROD env happy path",
+			input: "prod",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			obs, logs := observer.New(zap.DebugLevel)
+			serverLogger, err := NewServerLogger(EnvTypeFromString(test.input))
+			assert.NoError(t, err)
+
+			logger := zap.New(zapcore.NewTee(serverLogger.Core(), obs))
+
+			message := "foo"
+			logger.Info(message)
+			assert.Equal(t, 1, logs.Len())
+			logMessage := logs.AllUntimed()[0].Entry.Message
+			assert.Equal(t, message, logMessage)
+		})
+	}
 }

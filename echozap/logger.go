@@ -26,6 +26,25 @@ var (
 	}
 )
 
+type EnvironmentType string
+
+var (
+	DevEnv  EnvironmentType = "dev"
+	TestEnv EnvironmentType = "test"
+	ProdEnv EnvironmentType = "prod"
+)
+
+func EnvTypeFromString(envtype string) EnvironmentType {
+	switch envtype {
+	case "test":
+		return TestEnv
+	case "prod":
+		return ProdEnv
+	default: //case "dev":
+		return DevEnv
+	}
+}
+
 // DefaultSkipper returns false which processes the middleware
 func DefaultSkipper(echo.Context) bool {
 	return false
@@ -92,4 +111,35 @@ func ZapLoggerMiddlewareWithConfig(log *zap.Logger, config ZapLoggerMiddlewareCo
 			return nil
 		}
 	}
+}
+
+// NewServerLogger provides a logger with sain defaults for logging to server ENVs (dev,test,prod)
+// It configures a json structured logger that writes info messages to stdout
+func NewServerLogger(envType EnvironmentType) (*zap.Logger, error) {
+	var config zap.Config
+
+	switch envType {
+	case ProdEnv:
+		config = zap.NewProductionConfig()
+	default: //case TestEnv, DevEnv:
+		config = zap.NewDevelopmentConfig()
+	}
+
+	// Use structure logging in all envs
+	config.EncoderConfig = zap.NewProductionEncoderConfig()
+	config.Encoding = "json"
+
+	//Make sure info level messages are written to stdout in all envs
+	config.OutputPaths = []string{"stdout"}
+
+	zapLogger, err := config.Build()
+	if err != nil {
+		return nil, err
+	}
+
+	defer func(zapLogger *zap.Logger) {
+		_ = zapLogger.Sync()
+	}(zapLogger)
+
+	return zapLogger, nil
 }
