@@ -126,10 +126,12 @@ func NewServerLogger(envType EnvironmentType) (*zap.Logger, error) {
 	}
 
 	// Use structure logging in all envs
-	config.EncoderConfig = zap.NewProductionEncoderConfig()
-	config.Encoding = "json"
+	if envType == TestEnv || envType == DevEnv {
+		config.EncoderConfig = zap.NewProductionEncoderConfig()
+		config.Encoding = "json"
+	}
 
-	// INFO, DEBUG etc..
+	//Use CapitalLevelEncoder in all envs
 	config.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 
 	//Make sure info level messages are written to stdout in all envs
