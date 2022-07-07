@@ -69,7 +69,6 @@ func TestZapLoggerWithConfig(t *testing.T) {
 func TestNewServerLogger(t *testing.T) {
 	tests := []struct {
 		name        string
-		expectError bool
 		input       string
 	}{
 		{
