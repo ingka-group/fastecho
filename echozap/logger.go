@@ -103,24 +103,22 @@ func ZapLoggerMiddlewareWithConfig(log *zap.Logger, config ZapLoggerMiddlewareCo
 }
 
 // getEnvType() get the env type from the OS env
-func getEnvType() (string, error) {
+func getEnvType() string {
 	envType := os.Getenv(EnvTypeKey)
 
 	if envType != DevEnv && envType != TestEnv && envType != ProdEnv {
-		err := fmt.Errorf("please set %s to %s, %s or %s", EnvTypeKey, DevEnv, TestEnv, ProdEnv)
-		return "", err
+		//Fallback with a warning
+		fmt.Printf("no valid %s set, falling back to %s\n", EnvTypeKey, DevEnv)
+		envType = DevEnv
 	}
 
-	return envType, nil
+	return envType
 }
 
 // New provides a logger with sain defaults for logging to server ENVs (dev,test,prod)
 // It configures a json structured logger that writes info messages to stdout
 func New() (*zap.Logger, error) {
-	envType, err := getEnvType()
-	if err != nil {
-		return nil, err
-	}
+	envType := getEnvType()
 
 	var config zap.Config
 	if envType == ProdEnv {

@@ -68,24 +68,16 @@ func TestZapLoggerWithConfig(t *testing.T) {
 
 func TestNewServerLogger(t *testing.T) {
 	tests := []struct {
-		name        string
-		envType     string
-		expectError bool
+		name    string
+		envType string
 	}{
 		{
-			name:        "Log message NON-PROD env happy path",
-			envType:     DevEnv,
-			expectError: false,
+			name:    "Log message NO env happy path",
+			envType: "",
 		},
 		{
-			name:        "Log message PROD env happy path",
-			envType:     ProdEnv,
-			expectError: false,
-		},
-		{
-			name:        "Log message NO env error path",
-			envType:     "",
-			expectError: true,
+			name:    "Log message PROD env happy path",
+			envType: ProdEnv,
 		},
 	}
 
@@ -94,20 +86,16 @@ func TestNewServerLogger(t *testing.T) {
 			t.Setenv(EnvTypeKey, test.envType)
 			serverLogger, err := New()
 
-			if test.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
+			assert.NoError(t, err)
 
-				obs, logs := observer.New(zap.DebugLevel)
-				logger := zap.New(zapcore.NewTee(serverLogger.Core(), obs))
+			obs, logs := observer.New(zap.DebugLevel)
+			logger := zap.New(zapcore.NewTee(serverLogger.Core(), obs))
 
-				message := "foo"
-				logger.Info(message)
-				assert.Equal(t, 1, logs.Len())
-				logMessage := logs.AllUntimed()[0].Entry.Message
-				assert.Equal(t, message, logMessage)
-			}
+			message := "foo"
+			logger.Info(message)
+			assert.Equal(t, 1, logs.Len())
+			logMessage := logs.AllUntimed()[0].Entry.Message
+			assert.Equal(t, message, logMessage)
 		})
 	}
 }
