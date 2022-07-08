@@ -29,8 +29,8 @@ type Client struct {
 	client *storage.Client
 }
 
-// NewClient creates a new Client (GCS)
-func NewClient(ctx context.Context) (*Client, error) {
+// New creates a new GCS Client
+func New(ctx context.Context) (*Client, error) {
 	sc, err := storage.NewClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GCS client: %w", err)
