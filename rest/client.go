@@ -20,8 +20,8 @@ type Client struct {
 	client *http.Client
 }
 
-// NewClient creates a new Client
-func NewClient() *Client {
+// New creates a new REST Client
+func New() *Client {
 	return &Client{
 		client: &http.Client{},
 	}
