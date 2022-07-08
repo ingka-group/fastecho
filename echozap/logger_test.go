@@ -83,7 +83,7 @@ func TestNewServerLogger(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "Log message no env error path",
+			name:        "Log message NO env error path",
 			envType:     "",
 			expectError: true,
 		},
