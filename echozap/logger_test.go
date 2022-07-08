@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-func TestZapLogger(t *testing.T) {
+func TestZapLoggerMiddleware(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
 	rec := httptest.NewRecorder()
@@ -41,7 +41,7 @@ func TestZapLogger(t *testing.T) {
 	assert.NotNil(t, logFields["size"])
 }
 
-func TestZapLoggerWithConfig(t *testing.T) {
+func TestZapLoggerMiddlewareWithConfig(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
 	rec := httptest.NewRecorder()
@@ -66,7 +66,7 @@ func TestZapLoggerWithConfig(t *testing.T) {
 	assert.Equal(t, 0, logs.Len())
 }
 
-func TestNewServerLogger(t *testing.T) {
+func TestNew(t *testing.T) {
 	tests := []struct {
 		name    string
 		envType string
@@ -84,12 +84,12 @@ func TestNewServerLogger(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv(EnvTypeKey, test.envType)
-			serverLogger, err := New()
+			logger, err := New()
 
 			assert.NoError(t, err)
 
 			obs, logs := observer.New(zap.DebugLevel)
-			logger := zap.New(zapcore.NewTee(serverLogger.Core(), obs))
+			logger = zap.New(zapcore.NewTee(logger.Core(), obs))
 
 			message := "foo"
 			logger.Info(message)

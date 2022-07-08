@@ -52,7 +52,7 @@ func (c *Client) Request(req *http.Request) (*HTTPResponse, []byte, error) {
 	return (*HTTPResponse)(resp), body, nil
 }
 
-// HasSuccessStatusCode returns whether a status code is successful
-func (r *HTTPResponse) HasSuccessStatusCode() bool {
+// HasSuccessCode returns whether a status code is successful
+func (r *HTTPResponse) HasSuccessCode() bool {
 	return r.StatusCode >= 200 && r.StatusCode < 300
 }

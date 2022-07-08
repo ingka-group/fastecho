@@ -8,10 +8,10 @@ import (
 
 func TestDeconstructGsURI(t *testing.T) {
 	tests := []struct {
-		name        string
-		given       string
-		expect      []string
-		expectError bool
+		name      string
+		given     string
+		expect    []string
+		expectErr bool
 	}{
 		{
 			name:   "ok",
@@ -19,28 +19,28 @@ func TestDeconstructGsURI(t *testing.T) {
 			expect: []string{"ocp-mlflow-dev", "xfer/weekly-forecasts/output/scheduled__2022-01-25T22:00:00+00:00/fcp-baseline-latest-NL.json"},
 		},
 		{
-			name:        "invalid_gs_uri",
-			given:       "ocp-mlflow-dev/xfer/weekly-forecasts/output/scheduled__2022-01-25T22:00:00+00:00/fcp-baseline-latest-NL.json",
-			expectError: true,
+			name:      "invalid_gs_uri",
+			given:     "ocp-mlflow-dev/xfer/weekly-forecasts/output/scheduled__2022-01-25T22:00:00+00:00/fcp-baseline-latest-NL.json",
+			expectErr: true,
 		},
 		{
-			name:        "non_gs_uri",
-			given:       "https://ocp-mlflow-dev/xfer/weekly-forecasts/output/scheduled__2022-01-25T22:00:00+00:00/fcp-baseline-latest-NL.json",
-			expectError: true,
+			name:      "non_gs_uri",
+			given:     "https://ocp-mlflow-dev/xfer/weekly-forecasts/output/scheduled__2022-01-25T22:00:00+00:00/fcp-baseline-latest-NL.json",
+			expectErr: true,
 		},
 		{
-			name:        "empty_gs_uri",
-			given:       "gs:// / ",
-			expectError: true,
+			name:      "empty_gs_uri",
+			given:     "gs:// / ",
+			expectErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bucketName, filePath, err := DeconstructGsURI(tt.given)
 			if err != nil {
-				assert.True(t, tt.expectError)
+				assert.True(t, tt.expectErr)
 			} else {
-				assert.False(t, tt.expectError)
+				assert.False(t, tt.expectErr)
 				assert.Equal(t, bucketName, tt.expect[0])
 				assert.Equal(t, filePath, tt.expect[1])
 			}
@@ -50,10 +50,10 @@ func TestDeconstructGsURI(t *testing.T) {
 
 func TestDeconstructPath(t *testing.T) {
 	tests := []struct {
-		name        string
-		given       string
-		expect      []string
-		expectError bool
+		name      string
+		given     string
+		expect    []string
+		expectErr bool
 	}{
 		{
 			name:   "ok",
@@ -61,18 +61,18 @@ func TestDeconstructPath(t *testing.T) {
 			expect: []string{"xfer/2022-01-01T00:00:00", "forecast-NL.json"},
 		},
 		{
-			name:        "invalid_file_path",
-			given:       "xfer-2022-01-01T00:00:00-forecast-NL.json",
-			expectError: true,
+			name:      "invalid_file_path",
+			given:     "xfer-2022-01-01T00:00:00-forecast-NL.json",
+			expectErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			location, fileName, err := DeconstructPath(tt.given)
 			if err != nil {
-				assert.True(t, tt.expectError)
+				assert.True(t, tt.expectErr)
 			} else {
-				assert.False(t, tt.expectError)
+				assert.False(t, tt.expectErr)
 				assert.Equal(t, location, tt.expect[0])
 				assert.Equal(t, fileName, tt.expect[1])
 			}
