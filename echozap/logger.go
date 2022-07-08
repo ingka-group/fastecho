@@ -2,11 +2,19 @@ package echozap
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+)
+
+const (
+	EnvTypeKey = "ENV_TYPE"
+	DevEnv     = "dev"
+	TestEnv    = "test"
+	ProdEnv    = "prod"
 )
 
 type (
@@ -25,25 +33,6 @@ var (
 		Skipper: DefaultSkipper,
 	}
 )
-
-type EnvironmentType string
-
-var (
-	DevEnv  EnvironmentType = "dev"
-	TestEnv EnvironmentType = "test"
-	ProdEnv EnvironmentType = "prod"
-)
-
-func EnvTypeFromString(envtype string) EnvironmentType {
-	switch envtype {
-	case "test":
-		return TestEnv
-	case "prod":
-		return ProdEnv
-	default: //case "dev":
-		return DevEnv
-	}
-}
 
 // DefaultSkipper returns false which processes the middleware
 func DefaultSkipper(echo.Context) bool {
@@ -113,22 +102,35 @@ func ZapLoggerMiddlewareWithConfig(log *zap.Logger, config ZapLoggerMiddlewareCo
 	}
 }
 
-// NewServerLogger provides a logger with sain defaults for logging to server ENVs (dev,test,prod)
-// It configures a json structured logger that writes info messages to stdout
-func NewServerLogger(envType EnvironmentType) (*zap.Logger, error) {
-	var config zap.Config
+// getEnvType() get the env type from the OS env
+func getEnvType() (string, error) {
+	envType := os.Getenv(EnvTypeKey)
 
-	switch envType {
-	case ProdEnv:
-		config = zap.NewProductionConfig()
-	default: //case TestEnv, DevEnv:
-		config = zap.NewDevelopmentConfig()
+	if envType != DevEnv && envType != TestEnv && envType != ProdEnv {
+		err := fmt.Errorf("please set %s to %s, %s or %s", EnvTypeKey, DevEnv, TestEnv, ProdEnv)
+		return "", err
 	}
 
-	// Use structure logging in all envs
-	if envType == TestEnv || envType == DevEnv {
+	return envType, nil
+}
+
+// New provides a logger with sain defaults for logging to server ENVs (dev,test,prod)
+// It configures a json structured logger that writes info messages to stdout
+func New() (*zap.Logger, error) {
+	envType, err := getEnvType()
+	if err != nil {
+		return nil, err
+	}
+
+	var config zap.Config
+	if envType == ProdEnv {
+		config = zap.NewProductionConfig()
+	} else { // TestEnv, DevEnv
+		config = zap.NewDevelopmentConfig()
+
+		// Custom zap.NewDevelopmentConfig settings
 		config.EncoderConfig = zap.NewProductionEncoderConfig()
-		config.Encoding = "json"
+		config.Encoding = "json" // Use structure logging
 	}
 
 	//Use CapitalLevelEncoder in all envs
