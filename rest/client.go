@@ -1,0 +1,58 @@
+package rest
+
+import (
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
+)
+
+// HTTPResponse is an alias for http.Response
+type HTTPResponse http.Response
+
+// RESTDoer is the interface that defines the way to perform HTTP requests
+type RESTDoer interface {
+	Request(req *http.Request) (*HTTPResponse, []byte, error)
+}
+
+// Client is the struct that implements the RESTDoer
+type Client struct {
+	client *http.Client
+}
+
+// New creates a new REST Client
+func New() *Client {
+	return &Client{
+		client: &http.Client{},
+	}
+}
+
+// Request performs an HTTP request
+func (c *Client) Request(req *http.Request) (*HTTPResponse, []byte, error) {
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error while executing HTTP request: %w", err)
+	}
+
+	defer func(body io.Closer) {
+		if err = body.Close(); err != nil {
+			err = fmt.Errorf("error while closing request body: %w", err)
+		}
+	}(resp.Body)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error while reading request body: %w", err)
+	}
+
+	return (*HTTPResponse)(resp), body, nil
+}
+
+// HasSuccessCode returns whether a status code is successful
+func (r *HTTPResponse) HasSuccessCode() bool {
+	return r.StatusCode >= 200 && r.StatusCode < 300
+}
