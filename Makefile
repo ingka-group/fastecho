@@ -32,5 +32,5 @@ compile:
 .PHONY: test
 test: # @HELP runs unit tests and performs coverage evaluation
 test: compile  # you don't even want to start the tests if compilation failed
-	@go test -v -coverprofile=coverage.out ./...
+	@go test -coverprofile=coverage.out ./...
 	@go tool cover -func coverage.out
