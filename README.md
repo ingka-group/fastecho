@@ -10,4 +10,4 @@ A collection of Golang utils that can be used between multiple microservices
   53 of year n-1, and Dec 29 to Dec 31 might belong to week 1 of year n+1.
 
 ## How to make a new release?
-Simply tag the main branch with a version string, the initial tag is v1.0.0
+Raise a PR and merge the code to the `main` branch, this will trigger a workflow that is responsible to tag the new release with the necessary version.
