@@ -9,27 +9,28 @@ import (
 )
 
 const (
-	EnvTypeKey = "ENV_TYPE"
-	DevEnv     = "dev"
-	TestEnv    = "test"
-	ProdEnv    = "prod"
+	EnvType = "ENV_TYPE"
+
+	DevEnv  = "dev"
+	TestEnv = "test"
+	ProdEnv = "prod"
 )
 
 // getEnvType() get the env type from the OS env
 func getEnvType() string {
-	envType := os.Getenv(EnvTypeKey)
+	envType := os.Getenv(EnvType)
 
 	if envType != DevEnv && envType != TestEnv && envType != ProdEnv {
 		//Fallback with a warning
-		fmt.Printf("no valid %s set, falling back to %s\n", EnvTypeKey, DevEnv)
+		fmt.Printf("no valid %s set, falling back to %s\n", EnvType, DevEnv)
 		envType = DevEnv
 	}
 
 	return envType
 }
 
-// New provides a logger with sain defaults for logging to server ENVs (dev,test,prod)
-// It configures a json structured logger that writes info messages to stdout
+// New provides a logger with sain defaults for logging to server ENVs (dev, test, prod)
+// It configures a JSON structured logger that writes info messages to stdout
 func New() (*zap.Logger, error) {
 	envType := getEnvType()
 
@@ -44,10 +45,13 @@ func New() (*zap.Logger, error) {
 		config.Encoding = "json" // Use structure logging
 	}
 
-	//Use CapitalLevelEncoder in all envs
+	// Use CapitalLevelEncoder in all envs
 	config.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 
-	//Make sure info level messages are written to stdout in all envs
+	// Use human-readable timestamp
+	config.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
+
+	// Make sure info level messages are written to stdout in all envs
 	config.OutputPaths = []string{"stdout"}
 
 	zapLogger, err := config.Build()

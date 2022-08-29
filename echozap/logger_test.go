@@ -26,7 +26,7 @@ func TestNew(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Setenv(EnvTypeKey, test.envType)
+			t.Setenv(EnvType, test.envType)
 			logger, err := New()
 
 			assert.NoError(t, err)
@@ -37,6 +37,7 @@ func TestNew(t *testing.T) {
 			message := "foo"
 			logger.Info(message)
 			assert.Equal(t, 1, logs.Len())
+
 			logMessage := logs.AllUntimed()[0].Entry.Message
 			assert.Equal(t, message, logMessage)
 		})
