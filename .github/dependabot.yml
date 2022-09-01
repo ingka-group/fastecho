@@ -15,21 +15,28 @@ updates:
       # Semantic versioning is MAJOR.MINOR.PATCH we ignore PATCH updates:
       - dependency-name: "*"
         update-types: [ "version-update:semver-patch" ]
-    open-pull-requests-limit: 5
 
   # Docker
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    ignore:
+      # Semantic versioning is MAJOR.MINOR.PATCH we ignore PATCH updates:
+      - dependency-name: "*"
+        update-types: [ "version-update:semver-patch" ]
 
   # Github Actions
   - package-ecosystem: "github-actions"
     directory: "/"
+    registries:
+      - github
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    ignore:
+      # Semantic versioning is MAJOR.MINOR.PATCH we ignore PATCH updates:
+      - dependency-name: "*"
+        update-types: [ "version-update:semver-patch" ]
 
 # Setup for private repos
 registries:
