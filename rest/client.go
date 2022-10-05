@@ -30,9 +30,21 @@ type Params struct {
 	RequestType        string
 	RequestHeaders     map[string]string
 	RequestURL         string
-	RequestQueryParams map[string]string
+	RequestQueryParams []QueryParam
 	RequestBody        interface{}
 	RequestID          *string
+}
+
+// QueryParam defines a query parameter
+//
+// Required to support duplicate parameters. If we turn this into a map,
+// it's not possible to have the same key defined multiple times.
+// There are services that accept the same parameter multiple times.
+// In this case the query parameters would be: ?countries=NL&countries=DE
+// which cannot be supported with a simple map.
+type QueryParam struct {
+	Key   string
+	Value string
 }
 
 // DoRequest builds and performs a request given the rest.Params

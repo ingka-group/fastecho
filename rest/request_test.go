@@ -142,9 +142,15 @@ func TestHTTPRequest_SetQueryParams(t *testing.T) {
 			name: "ok: set query parameters",
 			args: args{
 				p: &Params{
-					RequestQueryParams: map[string]string{
-						"code":    "2",
-						"country": "NL",
+					RequestQueryParams: []QueryParam{
+						{
+							Key:   "code",
+							Value: "2",
+						},
+						{
+							Key:   "country",
+							Value: "NL",
+						},
 					},
 				},
 			},

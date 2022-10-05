@@ -24,8 +24,8 @@ func NewRequest(p *Params) (*HTTPRequest, error) {
 func (r *HTTPRequest) SetQueryParams(p *Params) {
 	if p.RequestQueryParams != nil {
 		query := r.URL.Query()
-		for name, value := range p.RequestQueryParams {
-			query.Add(name, value)
+		for _, param := range p.RequestQueryParams {
+			query.Add(param.Key, param.Value)
 		}
 
 		r.URL.RawQuery = query.Encode()
