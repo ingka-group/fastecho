@@ -7,11 +7,9 @@ import (
 	"net/http"
 )
 
-// HTTPResponse is an alias for http.Response
-type HTTPResponse http.Response
-
 // RESTDoer is the interface that defines the way to perform HTTP requests
 type RESTDoer interface {
+	DoRequest(p *Params) (*HTTPResponse, []byte, error)
 	Request(req *http.Request) (*HTTPResponse, []byte, error)
 }
 
@@ -25,6 +23,40 @@ func New() *Client {
 	return &Client{
 		client: &http.Client{},
 	}
+}
+
+// Params describes the request parameters
+type Params struct {
+	RequestType        string
+	RequestHeaders     map[string]string
+	RequestURL         string
+	RequestQueryParams map[string]string
+	RequestBody        interface{}
+	RequestID          *string
+}
+
+// DoRequest builds and performs a request given the rest.Params
+func (c *Client) DoRequest(p *Params) (*HTTPResponse, []byte, error) {
+	r, err := NewRequest(p)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	r.SetQueryParams(p)
+	r.SetRequestHeaders(p)
+	err = r.SetRequestBodyJSON(p)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	resp, body, err := c.Request(
+		(*http.Request)(r),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return resp, body, nil
 }
 
 // Request performs an HTTP request
@@ -50,9 +82,4 @@ func (c *Client) Request(req *http.Request) (*HTTPResponse, []byte, error) {
 	}
 
 	return (*HTTPResponse)(resp), body, nil
-}
-
-// HasSuccessCode returns whether a status code is successful
-func (r *HTTPResponse) HasSuccessCode() bool {
-	return r.StatusCode >= 200 && r.StatusCode < 300
 }

@@ -2,7 +2,9 @@
 A collection of Golang utils that can be used between multiple microservices
 
 - `echozap`: Configuration of Uber´s Zap logger, and a middleware for Golang Echo framework for logging HTTP requests
-- `rest`: A rest client with which we can perform HTTP requests, and easily mock in our services for unit testing
+- `rest`: A rest client with which we can perform HTTP requests, and easily mock in our services for unit testing. There are
+  two functions that can be used for the same purpose, namely, `Request` and `DoRequest`. It's best to use the latter as the former
+  will be deprecated in future versions.
 - `gcpstorage`: A storage client for GCS (Google Cloud Storage) with which we can manipulate data on a bucket, and easily mock in our services for unit testing
 - `date.IKEAWeek`: returns the year and week number in which the given date (specified by year, month, day) occurs,
   according to IKEA week numbering scheme which happens to match the US CDC epiweeks, i.e. Weeks start on Sundays
