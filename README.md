@@ -1,4 +1,6 @@
 # ocp-go-utils
+[![Quality Gate Status](https://sonarqube.ct.blue.cdtapps.com/api/project_badges/measure?project=ocp.go-utils&metric=alert_status&token=34cf6663e71a1d1e346d56eb479ee51ae7a1f774)](https://sonarqube.ct.blue.cdtapps.com/dashboard?id=ocp.go-utils) [![Reliability Rating](https://sonarqube.ct.blue.cdtapps.com/api/project_badges/measure?project=ocp.go-utils&metric=reliability_rating&token=34cf6663e71a1d1e346d56eb479ee51ae7a1f774)](https://sonarqube.ct.blue.cdtapps.com/dashboard?id=ocp.go-utils) [![Security Rating](https://sonarqube.ct.blue.cdtapps.com/api/project_badges/measure?project=ocp.go-utils&metric=security_rating&token=34cf6663e71a1d1e346d56eb479ee51ae7a1f774)](https://sonarqube.ct.blue.cdtapps.com/dashboard?id=ocp.go-utils) [![Coverage](https://sonarqube.ct.blue.cdtapps.com/api/project_badges/measure?project=ocp.go-utils&metric=coverage&token=34cf6663e71a1d1e346d56eb479ee51ae7a1f774)](https://sonarqube.ct.blue.cdtapps.com/dashboard?id=ocp.go-utils)
+
 A collection of Golang utils that can be used between multiple microservices
 
 - `echozap`: Configuration of Uber´s Zap logger, and a middleware for Golang Echo framework for logging HTTP requests

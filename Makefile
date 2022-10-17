@@ -1,8 +1,13 @@
-SHELL := /bin/bash
+GOBIN := $(or $(GOBIN),$(shell pwd)/bin)
+
+COVERAGE_REPORT := coverage.out
 
 .PHONY: help
 help: # @HELP shows this help
 help:
+	@echo
+	@echo 'Variables:'
+	@echo '  COVERAGE_REPORT = $(COVERAGE_REPORT)'
 	@echo
 	@echo 'Usage:'
 	@echo '  make <target>'
@@ -11,7 +16,7 @@ help:
 	    | awk '                                   \
 	        BEGIN {FS = ": *# *@HELP"};           \
 	        { printf "  %-30s %s\n", $$1, $$2 };  \
-	    ' | sort
+	    '
 
 .PHONY: check
 check: # @HELP runs pre-commit checks
@@ -22,7 +27,7 @@ check:
 clean: # @HELP removes unnecessary files
 clean:
 	@rm -rf bin/
-	@rm -f coverage.out
+	@rm -f ${COVERAGE_REPORT}
 
 .PHONY: compile
 compile: # @HELP runs the actual `go build` command which re-compiles the library
@@ -30,7 +35,18 @@ compile:
 	@go build ./...
 
 .PHONY: test
-test: # @HELP runs unit tests and performs coverage evaluation
-test: compile  # you don't even want to start the tests if compilation failed
-	@go test -coverprofile=coverage.out ./...
-	@go tool cover -func coverage.out
+test: # @HELP runs unit tests
+test:
+	@echo -n "Running unit tests..."
+	GOBIN=$(GOBIN) go test -v ./...
+
+.PHONY: coverage
+coverage: # @HELP generates an HTML coverage report
+coverage: coverage-report
+	GOBIN=$(GOBIN) go tool cover -func=${COVERAGE_REPORT} | tail -n 1
+	GOBIN=$(GOBIN) go tool cover -html=${COVERAGE_REPORT}
+
+.PHONY: coverage-report
+coverage-report: # @HELP runs all tests and generates a RAW coverage report to be picked up by analysis tools
+coverage-report:
+	GOBIN=$(GOBIN) go test -coverpkg ./date/...,./echozap/...,./gcstorage/...,./rest/...,./util/... -coverprofile=${COVERAGE_REPORT} ./...

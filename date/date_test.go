@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/ingka-group-digital/ocp-go-utils/testutil"
+	"github.com/ingka-group-digital/ocp-go-utils/util"
 )
 
 func TestDate_IKEAWeek(t *testing.T) {
@@ -16,7 +16,7 @@ func TestDate_IKEAWeek(t *testing.T) {
 	var tests []map[string]any
 
 	testFile := "testdata/weeks.json.gz"
-	payload := testutil.ReadGzippedTestFile(testFile)
+	payload := util.ReadGzippedTestFile(testFile)
 	err := json.Unmarshal(payload.Bytes(), &tests)
 	if err != nil {
 		log.Fatalf("Cannot unmarshal json test set: %v", err)

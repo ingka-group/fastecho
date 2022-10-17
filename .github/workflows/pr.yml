@@ -12,7 +12,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ingka-group-digital/ocp-pipelines/.github/actions/go-pr@main
+      - uses: ingka-group-digital/ocp-pipelines/.github/actions/go-pr@v1.3.0
         with:
           sonar_token: ${{ secrets.SONAR_TOKEN }}
           token: ${{ secrets.GH_BOT_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
