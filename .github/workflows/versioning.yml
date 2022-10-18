@@ -29,7 +29,7 @@ jobs:
           sonar_token: ${{ secrets.SONAR_TOKEN }}
 
       - name: Bump version and push tag
-        uses: anothrNick/github-tag-action@1.39.0
+        uses: anothrNick/github-tag-action@1.52.0
         env:
           GITHUB_TOKEN: ${{ github.token }}
           WITH_V: true
