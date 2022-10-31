@@ -19,12 +19,12 @@ jobs:
         with:
           go-version: 1.18
 
-      - uses: ingka-group-digital/ocp-pipelines/actions/git-private@v1.4.0
+      - uses: ingka-group-digital/ocp-pipelines/actions/git-private@v1.11.0
         with:
           token: ${{ secrets.GH_BOT_TOKEN }}
 
       - name: Run SonarQube scanner
-        uses: ingka-group-digital/ocp-pipelines/actions/golang-sonarqube@v1.4.0
+        uses: ingka-group-digital/ocp-pipelines/actions/golang-sonarqube@v1.11.0
         with:
           sonar_token: ${{ secrets.SONAR_TOKEN }}
 

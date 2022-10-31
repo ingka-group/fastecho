@@ -12,7 +12,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ingka-group-digital/ocp-pipelines/.github/actions/go-pr@v1.4.0
+      - uses: ingka-group-digital/ocp-pipelines/.github/actions/go-pr@v1.11.0
         with:
           run_sonar_scanner: false
           triage_pr_title: false
