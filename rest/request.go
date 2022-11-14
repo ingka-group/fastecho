@@ -3,7 +3,7 @@ package rest
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -40,7 +40,7 @@ func (r *HTTPRequest) SetRequestBodyJSON(p *Params) error {
 			return err
 		}
 
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(data))
+		r.Body = io.NopCloser(bytes.NewBuffer(data))
 	}
 
 	return nil

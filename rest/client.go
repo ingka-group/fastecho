@@ -3,7 +3,6 @@ package rest
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 )
 
@@ -88,7 +87,7 @@ func (c *Client) Request(req *http.Request) (*HTTPResponse, []byte, error) {
 		return nil, nil, err
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error while reading request body: %w", err)
 	}

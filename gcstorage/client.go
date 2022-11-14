@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"regexp"
 	"strings"
 
@@ -47,7 +47,7 @@ func (c *Client) Read(ctx context.Context, bucketName, filePath string) ([]byte,
 		return nil, fmt.Errorf("could not create a reader: %w", err)
 	}
 
-	bytes, err := ioutil.ReadAll(reader)
+	bytes, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, fmt.Errorf("could not read file from bucket: %w", err)
 	}
