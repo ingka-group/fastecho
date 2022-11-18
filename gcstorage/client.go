@@ -10,7 +10,7 @@ import (
 
 	"cloud.google.com/go/storage"
 
-	"github.com/ingka-group-digital/ocp-go-utils/util"
+	"github.com/ingka-group-digital/ocp-go-utils/stringutils"
 )
 
 var (
@@ -117,7 +117,7 @@ func DeconstructGsURI(gsURI string) (string, string, error) {
 	// The rest of the split is the filepath
 	filePath := strings.Join(gsUriParts[1:], "/")
 
-	if util.IsEmpty(gsUriParts[0]) || util.IsEmpty(filePath) {
+	if stringutils.IsEmpty(gsUriParts[0]) || stringutils.IsEmpty(filePath) {
 		return "", "", fmt.Errorf("invalid gs uri, cannot identify bucket name and filepath: %s", gsURI)
 	}
 
