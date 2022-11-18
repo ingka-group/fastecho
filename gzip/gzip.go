@@ -1,4 +1,4 @@
-package util
+package gzip
 
 import (
 	"bytes"
@@ -7,8 +7,8 @@ import (
 	"os"
 )
 
-// ReadGzippedTestFile reads a GZiped test file
-func ReadGzippedTestFile(path string) *bytes.Buffer {
+// ReadFile reads a GZiped file
+func ReadFile(path string) *bytes.Buffer {
 	f, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err)
