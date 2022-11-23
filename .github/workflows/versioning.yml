@@ -34,4 +34,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           WITH_V: true
           RELEASE_BRANCHES: main
+          # custom tagging policy adapted to conventional commits
+          MAJOR_STRING_TOKEN: feat!
+          MINOR_STRING_TOKEN: feat
           DEFAULT_BUMP: minor
