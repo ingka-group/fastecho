@@ -1,16 +1,33 @@
+---
+# Bail immediately when a check fails
+fail_fast: true
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.2.0
+    rev: v4.3.0
     hooks:
       - id: check-json
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
-  - repo: https://github.com/tekwizely/pre-commit-golang
-    rev: v0.8.3
+
+  # Here we partition the hooks to improve on the sequence of checks (heaviest check last)
+  - repo: &golang-repo https://github.com/tekwizely/pre-commit-golang
+    rev: &golang-rev v1.0.0-beta.5
+    hooks:
+      - id: go-fmt
+        args: [ -w ]
+
+  - repo: local
+    hooks:
+      - id: make-go-import-lint
+        name: make go-import-lint
+        entry: make go-import-lint
+        language: system
+
+  - repo: *golang-repo
+    rev: *golang-rev
     hooks:
       - id: go-build-mod
       - id: go-test-mod
       - id: golangci-lint-repo-mod
-      - id: go-fmt
-        args: [ -w ]

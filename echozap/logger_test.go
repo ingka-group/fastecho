@@ -15,11 +15,11 @@ func TestNew(t *testing.T) {
 		envType string
 	}{
 		{
-			name:    "Log message NO env happy path",
+			name:    "ok: log message NO env happy path",
 			envType: "",
 		},
 		{
-			name:    "Log message PROD env happy path",
+			name:    "ok: log message PROD env happy path",
 			envType: ProdEnv,
 		},
 	}

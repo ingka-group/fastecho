@@ -19,17 +19,17 @@ func TestDeconstructGsURI(t *testing.T) {
 			expect: []string{"ocp-mlflow-dev", "xfer/weekly-forecasts/output/scheduled__2022-01-25T22:00:00+00:00/fcp-baseline-latest-NL.json"},
 		},
 		{
-			name:      "invalid_gs_uri",
+			name:      "error: invalid gs uri",
 			given:     "ocp-mlflow-dev/xfer/weekly-forecasts/output/scheduled__2022-01-25T22:00:00+00:00/fcp-baseline-latest-NL.json",
 			expectErr: true,
 		},
 		{
-			name:      "non_gs_uri",
+			name:      "error: non gs uri",
 			given:     "https://ocp-mlflow-dev/xfer/weekly-forecasts/output/scheduled__2022-01-25T22:00:00+00:00/fcp-baseline-latest-NL.json",
 			expectErr: true,
 		},
 		{
-			name:      "empty_gs_uri",
+			name:      "error: empty gs uri",
 			given:     "gs:// / ",
 			expectErr: true,
 		},
@@ -61,7 +61,7 @@ func TestDeconstructPath(t *testing.T) {
 			expect: []string{"xfer/2022-01-01T00:00:00", "forecast-NL.json"},
 		},
 		{
-			name:      "invalid_file_path",
+			name:      "error: invalid file path",
 			given:     "xfer-2022-01-01T00:00:00-forecast-NL.json",
 			expectErr: true,
 		},

@@ -49,4 +49,16 @@ coverage: coverage-report
 .PHONY: coverage-report
 coverage-report: # @HELP runs all tests and generates a RAW coverage report to be picked up by analysis tools
 coverage-report:
-	GOBIN=$(GOBIN) go test -coverpkg ./date/...,./echozap/...,./gcstorage/...,./rest/...,./util/... -coverprofile=${COVERAGE_REPORT} ./...
+	GOBIN=$(GOBIN) go test -coverpkg ./date/...,./echozap/...,./gcstorage/...,./rest/...,./stringutils/...,./timeutils/... -coverprofile=${COVERAGE_REPORT} ./...
+
+.PHONY: go-import-lint
+go-import-lint: # @HELP verifies the imports order
+go-import-lint: bin/go-import-lint
+	@echo -n "Verifying import order"
+	PATH="$(PATH):$(GOBIN)" go-import-lint
+
+bin/go-import-lint:
+	@echo "Downloading go-import-lint..."
+	GOBIN=$(GOBIN) go install -v github.com/hedhyw/go-import-lint/cmd/go-import-lint@latest
+	@echo "Verifying go-import-lint installation..."
+	${GOBIN}/go-import-lint --help

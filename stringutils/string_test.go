@@ -19,12 +19,12 @@ func TestToInt(t *testing.T) {
 			expectInt: 100,
 		},
 		{
-			name:      "ok_negative_number",
+			name:      "ok: negative number",
 			givenStr:  "-100",
 			expectInt: -100,
 		},
 		{
-			name:      "error_string_not_numeric",
+			name:      "error: string is not numeric",
 			givenStr:  "100STR",
 			expectErr: true,
 		},
@@ -55,17 +55,17 @@ func TestIsEmpty(t *testing.T) {
 			expect:   false,
 		},
 		{
-			name:     "empty_str",
+			name:     "ok: empty string",
 			givenStr: "",
 			expect:   true,
 		},
 		{
-			name:     "empty_str_whitespace",
+			name:     "ok: empty string whitespace",
 			givenStr: "  ",
 			expect:   true,
 		},
 		{
-			name:     "empty_str_\\char",
+			name:     "ok: empty string with \\",
 			givenStr: "\r\t\n",
 			expect:   true,
 		},
@@ -98,7 +98,7 @@ func TestExistsInSlice(t *testing.T) {
 			expect: true,
 		},
 		{
-			name: "does_not_exist",
+			name: "ok: does not exist",
 			args: args{
 				givenStr: "100-ABC",
 				givenSl:  []string{"200-DEF"},
