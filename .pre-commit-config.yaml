@@ -24,6 +24,7 @@ repos:
         name: make go-import-lint
         entry: make go-import-lint
         language: system
+        require_serial: true
 
   - repo: *golang-repo
     rev: *golang-rev

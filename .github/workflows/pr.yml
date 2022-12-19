@@ -14,7 +14,6 @@ jobs:
 
       - uses: ingka-group-digital/ocp-pipelines/.github/actions/go-pr@v1.15.0
         with:
-          run_sonar_scanner: false
           triage_pr_title: true
           sonar_token: ${{ secrets.SONAR_TOKEN }}
           token: ${{ secrets.GH_BOT_TOKEN }}

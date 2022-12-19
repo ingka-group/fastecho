@@ -6,13 +6,9 @@ import (
 	"github.com/ingka-group-digital/ocp-go-utils/date"
 )
 
-const (
-	ISODateFmt = "2006-01-02" // yyyy-mm-dd
-)
-
-// ToISODate converts a time object to a string representation of an ISODate (yyyy-mm-dd)
+// ToISODate converts a time object to a string representation of a date.ISODate (yyyy-mm-dd)
 func ToISODate(d time.Time) string {
-	return d.Format(ISODateFmt)
+	return d.Format(date.ISODateFmt)
 }
 
 // DateToDDWWMMYYYY breaks the date given into day, week, month, year
