@@ -1,4 +1,4 @@
-name: 🔖 Versioning
+name: 🔖 Release
 
 on:
   push:
@@ -30,6 +30,7 @@ jobs:
 
       - name: Bump version and push tag
         uses: anothrNick/github-tag-action@1.52.0
+        id: bump_version
         env:
           GITHUB_TOKEN: ${{ github.token }}
           WITH_V: true
@@ -38,3 +39,10 @@ jobs:
           MAJOR_STRING_TOKEN: feat!
           MINOR_STRING_TOKEN: feat
           DEFAULT_BUMP: patch
+
+      - name: Create GitHub release
+        uses: ingka-group-digital/ocp-pipelines/actions/create-release@v1.15.0
+        with:
+          latest_release_tag: ${{ steps.bump_version.outputs.tag }}
+          new_release_tag: ${{ steps.bump_version.outputs.new_tag }}
+          github_token: ${{ github.token }}
