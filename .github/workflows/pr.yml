@@ -13,6 +13,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ingka-group-digital/ocp-pipelines/composites/go-pr@v2.2.2
+      - uses: ingka-group-digital/ocp-pipelines/composites/go-pr@v2.2.3
         with:
           sonar_token: ${{ secrets.SONAR_TOKEN }}
