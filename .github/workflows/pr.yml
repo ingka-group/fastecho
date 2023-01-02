@@ -1,3 +1,4 @@
+---
 name: 🔬 PR Analysis
 
 on:
@@ -12,9 +13,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ingka-group-digital/ocp-pipelines/.github/actions/go-pr@v1.15.0
+      - uses: ingka-group-digital/ocp-pipelines/composites/go-pr@v2.2.0
         with:
-          triage_pr_title: true
           sonar_token: ${{ secrets.SONAR_TOKEN }}
-          token: ${{ secrets.GH_BOT_TOKEN }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }}

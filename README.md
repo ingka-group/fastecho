@@ -12,7 +12,7 @@ A collection of Golang utils that can be used between multiple microservices
   according to IKEA week numbering scheme which happens to match the US CDC epiweeks, i.e. Weeks start on Sundays
   and first WOY contains four days. Week ranges from 1 to 53; Jan 01 to Jan 03 of year n might belong to week 52 or
   53 of year n-1, and Dec 29 to Dec 31 might belong to week 1 of year n+1.
-- `date.ISODate`: A custom type to unmarshall a date string to a time.Time object
+- `date.ISODate`: A custom type to unmarshal a date string to a time.Time object
 - `stringutils`: Provides a bunch of functions that deal with strings or conversions from strings
 - `timeutils`: Contains functions that deal with time.Time. These can be conversions or other utilities
 
