@@ -44,7 +44,7 @@ func TestDateToDDWWMMYYYY(t *testing.T) {
 	}
 }
 
-func TestToISODate(t *testing.T) {
+func TestToISODateStr(t *testing.T) {
 	tests := []struct {
 		name   string
 		given  time.Time
@@ -59,7 +59,7 @@ func TestToISODate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.expect, ToISODate(tt.given))
+			require.Equal(t, tt.expect, ToISODateStr(tt.given))
 		})
 	}
 }

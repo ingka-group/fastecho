@@ -6,8 +6,8 @@ import (
 	"github.com/ingka-group-digital/ocp-go-utils/date"
 )
 
-// ToISODate converts a time object to a string representation of a date.ISODate (yyyy-mm-dd)
-func ToISODate(d time.Time) string {
+// ToISODateStr converts a time object to a string representation of date.ISODateFmt (yyyy-mm-dd)
+func ToISODateStr(d time.Time) string {
 	return d.Format(date.ISODateFmt)
 }
 
