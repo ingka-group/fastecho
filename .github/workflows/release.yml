@@ -1,3 +1,4 @@
+---
 name: 🔖 Release
 
 on:
@@ -6,7 +7,7 @@ on:
       - main
 
 jobs:
-  versioning:
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source code
@@ -19,14 +20,20 @@ jobs:
         with:
           go-version: 1.18
 
-      - uses: ingka-group-digital/ocp-pipelines/actions/git-private@v1.15.0
+      - uses: ingka-group-digital/ocp-pipelines/actions/git-private@v2.2.4
         with:
-          token: ${{ secrets.GH_BOT_TOKEN }}
+          gh_bot_token: ${{ secrets.GH_BOT_TOKEN }}
 
       - name: Run SonarQube scanner
-        uses: ingka-group-digital/ocp-pipelines/actions/golang-sonarqube@v1.15.0
+        uses: ingka-group-digital/ocp-pipelines/actions/golang-sonarqube@v2.2.4
         with:
           sonar_token: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Get latest tag
+        uses: WyriHaximus/github-action-get-previous-tag@v1.3.0
+        id: previous_version
+        with:
+          prefix: v
 
       - name: Bump version and push tag
         uses: anothrNick/github-tag-action@1.55.0
@@ -41,8 +48,7 @@ jobs:
           DEFAULT_BUMP: patch
 
       - name: Create GitHub release
-        uses: ingka-group-digital/ocp-pipelines/actions/create-release@v1.15.0
+        uses: ingka-group-digital/ocp-pipelines/composites/create-release@v2.2.4
         with:
-          latest_release_tag: ${{ steps.bump_version.outputs.tag }}
+          latest_release_tag: ${{ steps.previous_version.outputs.tag }}
           new_release_tag: ${{ steps.bump_version.outputs.new_tag }}
-          github_token: ${{ github.token }}
