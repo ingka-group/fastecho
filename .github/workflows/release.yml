@@ -20,12 +20,12 @@ jobs:
         with:
           go-version: 1.18
 
-      - uses: ingka-group-digital/ocp-pipelines/actions/git-private@v2.6.0
+      - uses: ingka-group-digital/ocp-pipelines/actions/git-private@v2.7.0
         with:
           gh_bot_token: ${{ secrets.GH_BOT_TOKEN }}
 
       - name: Run SonarQube scanner
-        uses: ingka-group-digital/ocp-pipelines/actions/golang-sonarqube@v2.6.0
+        uses: ingka-group-digital/ocp-pipelines/actions/golang-sonarqube@v2.7.0
         with:
           sonar_token: ${{ secrets.SONAR_TOKEN }}
 
@@ -48,7 +48,7 @@ jobs:
           DEFAULT_BUMP: patch
 
       - name: Create GitHub release
-        uses: ingka-group-digital/ocp-pipelines/composites/create-release@v2.6.0
+        uses: ingka-group-digital/ocp-pipelines/composites/create-release@v2.7.0
         with:
           latest_release_tag: ${{ steps.previous_version.outputs.tag }}
           new_release_tag: ${{ steps.bump_version.outputs.new_tag }}
