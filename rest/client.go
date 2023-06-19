@@ -77,15 +77,7 @@ func (c *Client) Request(req *http.Request) (*HTTPResponse, []byte, error) {
 		return nil, nil, fmt.Errorf("error while executing HTTP request: %w", err)
 	}
 
-	defer func(body io.Closer) {
-		if err = body.Close(); err != nil {
-			err = fmt.Errorf("error while closing request body: %w", err)
-		}
-	}(resp.Body)
-
-	if err != nil {
-		return nil, nil, err
-	}
+	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

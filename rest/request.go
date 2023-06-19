@@ -17,6 +17,8 @@ func NewRequest(p *Params) (*HTTPRequest, error) {
 		return nil, err
 	}
 
+	r.Close = true
+
 	return (*HTTPRequest)(r), nil
 }
 
