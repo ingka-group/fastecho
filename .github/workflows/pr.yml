@@ -1,8 +1,11 @@
----
 name: 🔬 PR Analysis
 
 on:
   pull_request:
+
+env:
+  VAULT_ROLE_ID: ${{ secrets.VAULT_ROLE_ID }}
+  VAULT_SECRET_ID: ${{ secrets.VAULT_SECRET_ID }}
 
 jobs:
   pr-analysis:
@@ -13,6 +16,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ingka-group-digital/ocp-pipelines/composites/go-pr@v2.11.0
+      - uses: ingka-group-digital/ocp-pipelines/composites/go-pr@v2.18.0
         with:
-          sonar_token: ${{ secrets.SONAR_TOKEN }}
+          vault_role_id: ${{ env.VAULT_ROLE_ID }}
+          vault_secret_id: ${{ env.VAULT_SECRET_ID }}
