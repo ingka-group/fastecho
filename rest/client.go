@@ -18,7 +18,7 @@ type Client struct {
 }
 
 type ClientConfig struct {
-	transport http.RoundTripper
+	Transport http.RoundTripper
 }
 
 // New creates a new REST Client
@@ -32,8 +32,8 @@ func New() *Client {
 func NewWithClientConfig(config *ClientConfig) *Client {
 
 	httpClient := &http.Client{}
-	if config.transport != nil {
-		httpClient.Transport = config.transport
+	if config.Transport != nil {
+		httpClient.Transport = config.Transport
 	}
 	return &Client{
 		client: httpClient,

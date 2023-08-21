@@ -95,7 +95,7 @@ func TestClientConfig_DoRequest(t *testing.T) {
 
 			transport := MockTransport{}
 			client := NewWithClientConfig(&ClientConfig{
-				transport: &transport,
+				Transport: &transport,
 			})
 			p := Params{
 				RequestType: http.MethodGet,
