@@ -2,10 +2,11 @@ package rest
 
 import (
 	"fmt"
-	"net/http"
-	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"net/http"
+	"testing"
 )
 
 func TestClient_Request(t *testing.T) {
@@ -71,6 +72,41 @@ func TestClient_DoRequest(t *testing.T) {
 
 			assert.Equal(t, tt.expectCode, resp.StatusCode)
 			assert.Greater(t, len(body), 0)
+		})
+	}
+}
+
+func TestClientConfig_DoRequest(t *testing.T) {
+
+	tests := []struct {
+		name       string
+		givenUrl   string
+		expectCode int
+	}{
+		{
+			name:       "ok",
+			givenUrl:   "https://httpbin.org/get",
+			expectCode: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			transport := MockTransport{}
+			client := NewWithClientConfig(&ClientConfig{
+				transport: &transport,
+			})
+			p := Params{
+				RequestType: http.MethodGet,
+				RequestURL:  tt.givenUrl,
+			}
+
+			_, _, err := client.DoRequest(&p)
+			if err != nil {
+				t.Fail()
+			}
+			assert.True(t, transport.called)
 		})
 	}
 }
