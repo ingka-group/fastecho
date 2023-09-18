@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/storage v1.33.0
 	github.com/labstack/echo/v4 v4.11.1
 	github.com/stretchr/testify v1.8.1
-	go.uber.org/zap v1.25.0
+	go.uber.org/zap v1.26.0
 )
 
 require (
