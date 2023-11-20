@@ -20,6 +20,7 @@ var (
 // Bucket is the interface defining the interaction with GCS buckets
 type Bucket interface {
 	Read(ctx context.Context, bucketName, filePath string) ([]byte, error)
+	ReadStream(ctx context.Context, bucketName, filePath string) (*storage.Reader, error)
 	Write(ctx context.Context, bucketName, filePath string, data []byte) error
 	Delete(ctx context.Context, bucketName, filePath string) error
 }
@@ -40,9 +41,19 @@ func New(ctx context.Context) (*Client, error) {
 	}, nil
 }
 
+// ReadStream returns a reader for the data present on a cloud bucket
+func (c *Client) ReadStream(ctx context.Context, bucketName, filePath string) (*storage.Reader, error) {
+	reader, err := c.client.Bucket(bucketName).Object(filePath).NewReader(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("could not create a reader: %w", err)
+	}
+
+	return reader, nil
+}
+
 // Read returns data present on a cloud bucket
 func (c *Client) Read(ctx context.Context, bucketName, filePath string) ([]byte, error) {
-	reader, err := c.client.Bucket(bucketName).Object(filePath).NewReader(ctx)
+	reader, err := c.ReadStream(ctx, bucketName, filePath)
 	if err != nil {
 		return nil, fmt.Errorf("could not create a reader: %w", err)
 	}
