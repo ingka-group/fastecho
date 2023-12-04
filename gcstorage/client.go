@@ -22,6 +22,7 @@ type Bucket interface {
 	Read(ctx context.Context, bucketName, filePath string) ([]byte, error)
 	ReadStream(ctx context.Context, bucketName, filePath string) (*storage.Reader, error)
 	Write(ctx context.Context, bucketName, filePath string, data []byte) error
+	WriteStream(ctx context.Context, bucketName, filePath string) *storage.Writer
 	Delete(ctx context.Context, bucketName, filePath string) error
 }
 
@@ -70,9 +71,14 @@ func (c *Client) Read(ctx context.Context, bucketName, filePath string) ([]byte,
 	return bytes, nil
 }
 
+// WriteStream returns a *storage.Writer for the data present on a cloud bucket
+func (c *Client) WriteStream(ctx context.Context, bucketName, filePath string) *storage.Writer {
+	return c.client.Bucket(bucketName).Object(filePath).NewWriter(ctx)
+}
+
 // Write stores the given data to a cloud bucket
 func (c *Client) Write(ctx context.Context, bucketName, filePath string, data []byte) error {
-	writer := c.client.Bucket(bucketName).Object(filePath).NewWriter(ctx)
+	writer := c.WriteStream(ctx, bucketName, filePath)
 	writer.ContentType = "application/json"
 
 	if _, err := writer.Write(data); err != nil {
