@@ -25,13 +25,13 @@ jobs:
       - run: go version
 
       - name: Configure git for private modules
-        uses: ingka-group-digital/ocp-pipelines/actions/git-private@v2.24.0
+        uses: ingka-group-digital/ocp-pipelines/actions/git-private@v2.26.0
         with:
           vault_role_id: ${{ env.VAULT_ROLE_ID }}
           vault_secret_id: ${{ env.VAULT_SECRET_ID }}
 
       - name: Run SonarQube scanner
-        uses: ingka-group-digital/ocp-pipelines/actions/golang-sonarqube@v2.24.0
+        uses: ingka-group-digital/ocp-pipelines/actions/golang-sonarqube@v2.26.0
         with:
           vault_role_id: ${{ env.VAULT_ROLE_ID }}
           vault_secret_id: ${{ env.VAULT_SECRET_ID }}
@@ -55,7 +55,7 @@ jobs:
           DEFAULT_BUMP: patch
 
       - name: Create GitHub release
-        uses: ingka-group-digital/ocp-pipelines/composites/create-release@v2.24.0
+        uses: ingka-group-digital/ocp-pipelines/composites/create-release@v2.26.0
         with:
           latest_release_tag: ${{ steps.previous_version.outputs.tag }}
           new_release_tag: ${{ steps.bump_version.outputs.new_tag }}
