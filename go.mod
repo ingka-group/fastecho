@@ -3,7 +3,7 @@ module github.com/ingka-group-digital/ocp-go-utils
 go 1.20
 
 require (
-	cloud.google.com/go/storage v1.35.1
+	cloud.google.com/go/storage v1.36.0
 	github.com/labstack/echo/v4 v4.11.1
 	github.com/stretchr/testify v1.8.1
 	go.uber.org/zap v1.26.0
