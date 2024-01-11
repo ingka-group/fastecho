@@ -13,7 +13,7 @@ import (
 // Params define the parameters of a request.
 type Params struct {
 	Path  map[string]string
-	Query map[string]string
+	Query map[string][]string
 	Body  string
 }
 
@@ -51,10 +51,15 @@ func Request(it *IntegrationTest, method string, params Params) (echo.Context, *
 		ctx.SetParamValues(paramValues...)
 	}
 
+	// params.Query is a map with value as a slice of strings
+	// This is required in case we want to pass multiple values for
+	// the same query parameter. For example /v1/sales?status=active&status=inactive
 	if params.Query != nil {
 		q := ctx.QueryParams()
 		for name, value := range params.Query {
-			q.Add(name, value)
+			for i := range value {
+				q.Add(name, value[i])
+			}
 		}
 	}
 
