@@ -3,6 +3,14 @@
 
 A collection of Golang utils that can be used between multiple microservices
 
+- `api`: Contains common handlers for building REST APIs and boilerplate code for testing (e.g. integration with testcontainers).
+- `docs`: A utility to generate a Golang file with the functions and their documentation instructed to look up. Under the hood
+  the `go doc` is used. This is particularly useful to allow `swaggo` to generate the OpenAPI docs for handlers that do not
+  directly exist in the codebase of the repository that is using `ocp-go-utils`. In such cases, we have to create dummy functions
+  and "import" their corresponding comments from `ocp-go-utils` manually so that `swaggo` can read and generate the specification
+  for the imported handlers. The utility `docs` is a helper to automate this process. It can be called with `go generate` before
+  the `make swagger` to generate the relevant files before `swaggo` translates them into the OpenAPI specification. As this is a
+  CLI tool you can run it using `--help` flag to see the required arguments.
 - `echozap`: Configuration of Uber´s Zap logger, and a middleware for Golang Echo framework for logging HTTP requests
 - `rest`: A rest client with which we can perform HTTP requests, and easily mock in our services for unit testing. There are
   two functions that can be used for the same purpose, namely, `Request` and `DoRequest`. It's best to use the latter as the former
