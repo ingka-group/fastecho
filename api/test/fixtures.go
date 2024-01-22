@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+
+	"github.com/ingka-group-digital/ocp-go-utils/excel"
 )
 
 // Fixtures is a helper for reading fixtures.
@@ -17,6 +19,17 @@ func (f Fixtures) ReadResponse(s string) string {
 // ReadRequestBody reads the request body from a file.
 func (f Fixtures) ReadRequestBody(s string) string {
 	return f.ReadFixture(s+".json", "requests")
+}
+
+// ReadExcelFile reads an excel file with xlsx extension.
+func (f Fixtures) ReadExcelFile(s string) map[string][][]string {
+	content := f.ReadFixture(s+".xlsx", "excel")
+	buf := []byte(content)
+	file, err := f.ExcelToMap(buf)
+	if err != nil {
+		log.Fatalf("could not load excel file '%s': %v", s, err)
+	}
+	return file
 }
 
 // ReadFixture reads a fixture from a file.
@@ -33,4 +46,13 @@ func (f Fixtures) ReadFixture(filename, dir string) string {
 	}
 
 	return string(buf)
+}
+
+func (f Fixtures) ExcelToMap(content []byte) (map[string][][]string, error) {
+	file, err := excel.BytesToExcel(content)
+	if err != nil {
+		return nil, err
+	}
+
+	return excel.ExcelToMap(file)
 }

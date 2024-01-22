@@ -4,21 +4,22 @@ import (
 	"net/http/httptest"
 	"strings"
 
-	"github.com/ingka-group-digital/ocp-go-utils/stringutils"
-
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ingka-group-digital/ocp-go-utils/stringutils"
 )
 
 // Data is a helper struct to define the parameters of a request for a test case.
 type Data struct {
-	Name              string
-	Method            string
-	Params            Params
-	Handler           func(ctx echo.Context) error
-	ExpectResponse    string
-	ExpectErrResponse bool
-	ExpectCode        int
+	Name               string
+	Method             string
+	Params             Params
+	Handler            func(ctx echo.Context) error
+	ExpectResponse     string
+	ExpectErrResponse  bool
+	ExpectCode         int
+	ExpectResponseType string
 }
 
 // HandlerResult holds the result of a handler, the error that possibly was returned and the response recorder.
@@ -96,11 +97,22 @@ func assertHandlerResult(it *IntegrationTest, t *Data, res *HandlerResult) {
 	require.Equal(it.T, t.ExpectCode, res.Response.Code)
 
 	if !stringutils.IsEmpty(t.ExpectResponse) {
-		t.ExpectResponse = it.Fixtures.ReadResponse(t.ExpectResponse)
+		if t.ExpectResponseType == Excel {
+			expectedRows := it.Fixtures.ReadExcelFile(t.ExpectResponse)
 
-		require.Equal(it.T,
-			minify(t.ExpectResponse),
-			strings.TrimSpace(res.Response.Body.String()),
-		)
+			responseRows, err := it.Fixtures.ExcelToMap(res.Response.Body.Bytes())
+			if err != nil {
+				it.T.Fatalf(err.Error())
+			}
+
+			require.Equal(it.T, expectedRows, responseRows)
+		} else {
+			t.ExpectResponse = it.Fixtures.ReadResponse(t.ExpectResponse)
+
+			require.Equal(it.T,
+				minify(t.ExpectResponse),
+				strings.TrimSpace(res.Response.Body.String()),
+			)
+		}
 	}
 }
