@@ -16,6 +16,7 @@ type Data struct {
 	Method             string
 	Params             Params
 	Handler            func(ctx echo.Context) error
+	Mocks              []MockCall
 	ExpectResponse     string
 	ExpectErrResponse  bool
 	ExpectCode         int
@@ -60,13 +61,24 @@ type HandlerResult struct {
 //		}
 func Assert(it *IntegrationTest, t *Data, res *HandlerResult) {
 	it.T.Log(it.T.Name(), "/", t.Name)
+
 	assertHandlerResult(it, t, res)
+}
+
+func LoadMocks(it *IntegrationTest, t *Data) {
+	if it.Mock != nil {
+		for i := range t.Mocks {
+			it.Mock.MockRequest(t.Mocks[i].Config)
+		}
+	}
 }
 
 // AssertAll runs the given tests and asserts their result. The handler function is called inside the assertion method.
 func AssertAll(it *IntegrationTest, tt []Data) {
 	for _, t := range tt {
 		it.T.Log(it.T.Name(), "/", t.Name)
+
+		LoadMocks(it, &t)
 
 		ctx, response := Request(it, t.Method, t.Params)
 		err := t.Handler(ctx)

@@ -18,6 +18,7 @@ type IntegrationTest struct {
 	Echo      *echo.Echo
 	Fixtures  *Fixtures
 	Container *PostgresDBContainer
+	Mock      *Mock
 
 	opts []IntegrationTestOption
 }
@@ -79,4 +80,18 @@ func (o IntegrationTestWithPostgres) tearDown(it *IntegrationTest) {
 	if err != nil {
 		it.T.Logf("error detected during container termination: %v", err)
 	}
+}
+
+// IntegrationTestWithMocks is an option for integration testing that allows mocking
+// The mocks should be placed in a 'mocks' directory where the _test.go file is located.
+type IntegrationTestWithMocks struct {
+	BaseURL string
+}
+
+func (o IntegrationTestWithMocks) setup(it *IntegrationTest) {
+	it.Mock = NewMock(o.BaseURL)
+}
+
+func (o IntegrationTestWithMocks) tearDown(it *IntegrationTest) {
+	it.Mock.TearDown()
 }
