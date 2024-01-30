@@ -37,7 +37,7 @@ jobs:
           vault_secret_id: ${{ env.VAULT_SECRET_ID }}
 
       - name: Get latest tag
-        uses: WyriHaximus/github-action-get-previous-tag@v1.3.0
+        uses: WyriHaximus/github-action-get-previous-tag@v1.4.0
         id: previous_version
         with:
           prefix: v
