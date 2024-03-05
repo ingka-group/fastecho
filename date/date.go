@@ -4,6 +4,25 @@ import (
 	"time"
 )
 
+// IKEAWeekFirstDay returns the first day of the week in the IKEA week numbering system.
+func IKEAWeekFirstDay(y, w int) time.Time {
+	firstSunday := time.Date(y, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	// iterate to first sunday of year
+	for firstSunday.Weekday() != time.Sunday {
+		firstSunday = firstSunday.AddDate(0, 0, +1)
+	}
+	// loop every 7 days until we reach week
+	firstDayWeek := time.Date(y, firstSunday.Month(), firstSunday.Day(), 0, 0, 0, 0, time.UTC)
+	_, ikeaWeek := IKEAWeek(firstDayWeek.Year(), int(firstDayWeek.Month()), firstDayWeek.Day())
+	for w != ikeaWeek {
+		firstDayWeek = firstDayWeek.AddDate(0, 0, 7)
+		_, ikeaWeek = IKEAWeek(firstDayWeek.Year(), int(firstDayWeek.Month()), firstDayWeek.Day())
+	}
+
+	return firstDayWeek
+}
+
 // IKEAWeek returns the year and week number in which the given date (specified by year, month, day) occurs,
 // according to the IKEA week numbering system. This follows ISO 8601, but with the exception that weeks start on Sunday.
 // This leads for some years to the possibility of creating a nonexisting week number week 53 eg. 2004/2015/2026, etc.
@@ -44,7 +63,7 @@ func IKEAWeek(y, m, day int) (weekYear, week int) {
 		} else if d.Month() == time.January {
 			jan4 = time.Date(d.Year(), 1, 4, 0, 0, 0, 0, time.UTC)
 		}
-		// if current date is in the week before jan 4 when it falls on a sunday
+		// if current date is in the week before jan 4 when it falls on a sunday we create week 53
 		if d.After(jan4.AddDate(0, 0, -8)) && d.Before(jan4) && jan4.Weekday() == time.Sunday {
 			week = 53
 			if d.Year() == jan4.Year() {
