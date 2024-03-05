@@ -6,13 +6,22 @@ import (
 
 // IKEAWeekFirstDay returns the first day of the week in the IKEA week numbering system.
 func IKEAWeekFirstDay(y, w int) time.Time {
-	firstSunday := time.Date(y, 1, 1, 0, 0, 0, 0, time.UTC)
+	firstSunday := time.Date(y, 1, 4, 0, 0, 0, 0, time.UTC)
 
-	// iterate to first sunday of year
+	// first week is the one with jan4 in it
+	if firstSunday.Weekday() != time.Sunday && w == 1 {
+		// first day of the week is before jan4
+		for firstSunday.Weekday() != time.Sunday {
+			firstSunday = firstSunday.AddDate(0, 0, -1)
+		}
+		return firstSunday
+	}
+
+	// iterate to first sunday of year after jan4
 	for firstSunday.Weekday() != time.Sunday {
 		firstSunday = firstSunday.AddDate(0, 0, +1)
 	}
-	// loop every 7 days until we reach week
+	// loop every 7 days until we reach week number
 	firstDayWeek := time.Date(y, firstSunday.Month(), firstSunday.Day(), 0, 0, 0, 0, time.UTC)
 	_, ikeaWeek := IKEAWeek(firstDayWeek.Year(), int(firstDayWeek.Month()), firstDayWeek.Day())
 	for w != ikeaWeek {
