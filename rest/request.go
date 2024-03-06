@@ -2,17 +2,30 @@ package rest
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
-	"io"
-	"net/http"
 
 	"github.com/labstack/echo/v4"
+
+	"io"
+	"net/http"
 )
 
 type HTTPRequest http.Request
 
 func NewRequest(p *Params) (*HTTPRequest, error) {
 	r, err := http.NewRequest(p.RequestType, p.RequestURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	r.Close = true
+
+	return (*HTTPRequest)(r), nil
+}
+
+func NewRequestWithContext(ctx context.Context, p *Params) (*HTTPRequest, error) {
+	r, err := http.NewRequestWithContext(ctx, p.RequestType, p.RequestURL, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 // RESTDoer is the interface that defines the way to perform HTTP requests
 type RESTDoer interface {
 	DoRequest(p *Params) (*HTTPResponse, []byte, error)
+	DoRequestWithContext(ctx context.Context, p *Params) (*HTTPResponse, []byte, error)
 	Request(req *http.Request) (*HTTPResponse, []byte, error)
 }
 
@@ -69,9 +71,23 @@ func (c *Client) DoRequest(p *Params) (*HTTPResponse, []byte, error) {
 		return nil, nil, err
 	}
 
+	return c.doRequest(r, p)
+}
+
+// DoRequestWithContext builds and performs a request given the context.Context and the rest.Params
+func (c *Client) DoRequestWithContext(ctx context.Context, p *Params) (*HTTPResponse, []byte, error) {
+	r, err := NewRequestWithContext(ctx, p)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return c.doRequest(r, p)
+}
+
+func (c *Client) doRequest(r *HTTPRequest, p *Params) (*HTTPResponse, []byte, error) {
 	r.SetQueryParams(p)
 	r.SetRequestHeaders(p)
-	err = r.SetRequestBodyJSON(p)
+	err := r.SetRequestBodyJSON(p)
 	if err != nil {
 		return nil, nil, err
 	}
