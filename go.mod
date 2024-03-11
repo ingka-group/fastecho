@@ -8,7 +8,7 @@ require (
 	github.com/labstack/echo/v4 v4.11.4
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.9.0
-	github.com/testcontainers/testcontainers-go v0.26.0
+	github.com/testcontainers/testcontainers-go v0.29.1
 	go.uber.org/zap v1.27.0
 	gorm.io/driver/postgres v1.5.6
 	gorm.io/gorm v1.25.7
