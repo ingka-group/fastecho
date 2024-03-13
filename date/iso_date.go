@@ -44,3 +44,20 @@ func (d *ISODate) UnmarshalParam(p string) (err error) {
 	d.Time = t
 	return
 }
+
+// Date returns the wrapped time.Time object of the ISODate struct for interoperability with the
+// [agg.Dated] aggregation methods.
+func (d ISODate) Date() time.Time {
+	return d.Time
+}
+
+// String returns the formatted representation of the wrapped time.Time struct as the ISO date
+// format (YYYY-MM-DD).
+func (d ISODate) String() string {
+	return d.Time.Format(ISODateFmt)
+}
+
+// FromTime returns an ISODate for a given [time.Time] struct.
+func FromTime(time time.Time) ISODate {
+	return ISODate{time}
+}

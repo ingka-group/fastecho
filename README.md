@@ -3,6 +3,8 @@
 
 A collection of Golang utils that can be used between multiple microservices
 
+- `agg`: A small aggregation package that helps with common use cases like aggregating by IKEA
+  weeks. Read the [documentation](./agg/README.md) for details.
 - `api`: Contains common handlers for building REST APIs and boilerplate code for testing (e.g. integration with testcontainers).
 - `docs`: A utility to generate a Golang file with the functions and their documentation instructed to look up. Under the hood
   the `go doc` is used. This is particularly useful to allow `swaggo` to generate the OpenAPI docs for handlers that do not
@@ -12,6 +14,8 @@ A collection of Golang utils that can be used between multiple microservices
   the `make swagger` to generate the relevant files before `swaggo` translates them into the OpenAPI specification. As this is a
   CLI tool you can run it using `--help` flag to see the required arguments.
 - `echozap`: Configuration of Uber´s Zap logger, and a middleware for Golang Echo framework for logging HTTP requests
+- `fp`: A functional programming package that includes common functions like `Map`, `Reduce`
+  and `Filter`. Read the [documentation](./fp/README.md) for details.
 - `rest`: A rest client with which we can perform HTTP requests, and easily mock in our services for unit testing. There are
   two functions that can be used for the same purpose, namely, `Request` and `DoRequest`. It's best to use the latter as the former
   will be deprecated in future versions.

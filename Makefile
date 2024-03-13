@@ -49,7 +49,7 @@ coverage: coverage-report
 .PHONY: coverage-report
 coverage-report: # @HELP runs all tests and generates a RAW coverage report to be picked up by analysis tools
 coverage-report:
-	GOBIN=$(GOBIN) go test -coverpkg ./date/...,./echozap/...,./gcstorage/...,./rest/...,./stringutils/...,./timeutils/... -coverprofile=${COVERAGE_REPORT} ./...
+	GOBIN=$(GOBIN) go test -cover -coverprofile=${COVERAGE_REPORT} ./...
 
 .PHONY: go-import-lint
 go-import-lint: # @HELP verifies the imports order
