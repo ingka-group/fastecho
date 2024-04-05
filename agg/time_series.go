@@ -21,16 +21,50 @@ type Dated interface {
 	Date() time.Time
 }
 
+type Interval interface {
+	Dated
+	// Add advances an interval by a provided amount. Amount can be negative, in which case the
+	// interval goes back in time.
+	//
+	// Example: advancing the interval of `YearMonth{Year: 2024, Month: 1}` by 1 would return
+	// `YearMonth{Year: 2024, Month: 2}`. Advancing it by -1 would return `YearMonth{Year: 2023,
+	// Month: 12}`.
+	Add(amount int) Interval
+
+	// Start returns the first instant in the interval. It should be equivalent to `Date()` in most
+	// situations.
+	Start() time.Time
+
+	// End returns the last day in the interval (at midnight).
+	End() time.Time
+}
+
 // Year represents a single year.
 type Year int
 
-// Returns January 1st of the given year.
+// Date returns January 1st of the given year.
 func (y Year) Date() time.Time {
 	return time.Date(int(y), 1, 1, 0, 0, 0, 0, time.UTC)
 }
 
+// String returns a textual representation of the year.
 func (y Year) String() string {
 	return fmt.Sprintf("%d", int(y))
+}
+
+// Add advances the year. A negative value will return a past year.
+func (y Year) Add(amount int) Interval {
+	return Year(int(y) + amount)
+}
+
+// Start returns the first day of the year.
+func (y Year) Start() time.Time {
+	return y.Date()
+}
+
+// End returns the last day of the year.
+func (y Year) End() time.Time {
+	return time.Date(int(y), 12, 31, 0, 0, 0, 0, time.UTC)
 }
 
 // YearMonth represents a month in a year.
@@ -39,13 +73,32 @@ type YearMonth struct {
 	Month int
 }
 
-// Returns the 1st day of the given month.
+// Date returns the 1st day of the given month.
 func (ym YearMonth) Date() time.Time {
 	return time.Date(ym.Year, time.Month(ym.Month), 1, 0, 0, 0, 0, time.UTC)
 }
 
 func (ym YearMonth) String() string {
 	return fmt.Sprintf("%d-%02d", ym.Year, ym.Month)
+}
+
+// Add advances the YearMonth by a set amount.
+func (ym YearMonth) Add(amount int) Interval {
+	new := ym.Date().AddDate(0, amount, 0)
+	return YearMonth{
+		Year:  new.Year(),
+		Month: int(new.Month()),
+	}
+}
+
+// Start returns the first day of the month.
+func (ym YearMonth) Start() time.Time {
+	return ym.Date()
+}
+
+// End returns the last day of the month.
+func (ym YearMonth) End() time.Time {
+	return ym.Date().AddDate(0, 1, -1)
 }
 
 // IKEAWeek represents a single IKEA week, as calculated by [date.IKEAWeek].
@@ -58,8 +111,26 @@ func (w IKEAWeek) Date() time.Time {
 	return date.IKEAWeekFirstDay(w.Year, w.Week)
 }
 
+// String returns a textual representation of the IKEA week (e.g. `2024-W01`)
 func (w IKEAWeek) String() string {
 	return fmt.Sprintf("%d-W%02d", w.Year, w.Week)
+}
+
+// Add advances the IKEA Week by the specified amount of weeks.. The amount can be negative. This
+// function will gracefully handle transitions across years.
+func (w IKEAWeek) Add(amount int) Interval {
+	new := w.Date().AddDate(0, 0, amount*7)
+	return ByIKEAWeek(date.FromTime(new))
+}
+
+// Start returns the first day of the week.
+func (w IKEAWeek) Start() time.Time {
+	return w.Date()
+}
+
+// End returns the last day of the week.
+func (w IKEAWeek) End() time.Time {
+	return w.Date().AddDate(0, 0, 6)
 }
 
 // TimeAggregation is a constraint that permits any of the built-in time series groups provided by
