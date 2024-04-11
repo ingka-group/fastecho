@@ -53,12 +53,18 @@ type IntegrationTestOption interface {
 
 // IntegrationTestWithPostgres is an option for integration testing that sets up a postgres database test container.
 // In the InitSQLScript a SQL script filename can be passed to initialize the database. The script should be located
-// under a 'fixtures' directory where the _test.go file is located.
+// under a 'fixtures' directory where the _test.go file is located. An optional gorm config can also be passed.
 type IntegrationTestWithPostgres struct {
 	InitSQLScript string
+	Config        *gorm.Config
 }
 
 func (o IntegrationTestWithPostgres) setup(it *IntegrationTest) {
+	// sanity check
+	if o.Config == nil {
+		o.Config = &gorm.Config{}
+	}
+
 	dbContainer, err := setupPostgresDB(context.Background(), o.InitSQLScript)
 	if err != nil {
 		it.T.Fatalf("database setup error: %v", err)
@@ -67,7 +73,7 @@ func (o IntegrationTestWithPostgres) setup(it *IntegrationTest) {
 	it.Container = dbContainer
 
 	dsn := dbURL(dbContainer.DBHost, nat.Port(fmt.Sprintf("%d/tcp", dbContainer.DBPort)))
-	db, err := gorm.Open(postgres.Open(dsn))
+	db, err := gorm.Open(postgres.Open(dsn), o.Config)
 	if err != nil {
 		it.T.Fatalf("database connection error: %v", err)
 	}
