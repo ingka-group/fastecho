@@ -13,12 +13,13 @@ import (
 
 // IntegrationTest is a struct that holds all the necessary information for integration testing.
 type IntegrationTest struct {
-	T         *testing.T
-	Db        *gorm.DB
-	Echo      *echo.Echo
-	Fixtures  *Fixtures
-	Container *PostgresDBContainer
-	Mock      *Mock
+	T           *testing.T
+	Db          *gorm.DB
+	Echo        *echo.Echo
+	Fixtures    *Fixtures
+	Container   *PostgresDBContainer
+	BqContainer *BigqueryEmulatorContainer
+	Mock        *Mock
 
 	opts []IntegrationTestOption
 }
@@ -100,4 +101,25 @@ func (o IntegrationTestWithMocks) setup(it *IntegrationTest) {
 
 func (o IntegrationTestWithMocks) tearDown(it *IntegrationTest) {
 	it.Mock.TearDown()
+}
+
+// IntegrationTestWithBigQuery is an option for integration testing that sets up a BigQuery database test container.
+type IntegrationTestWithBigQuery struct {
+	dataPath string
+}
+
+func (o IntegrationTestWithBigQuery) setup(it *IntegrationTest) {
+	container, err := setupBigqueryEmulator(context.Background(), o.dataPath)
+	if err != nil {
+		it.T.Fatalf("database setup error: %v", err)
+	}
+
+	it.BqContainer = container
+}
+
+func (o IntegrationTestWithBigQuery) tearDown(it *IntegrationTest) {
+	err := it.Container.Terminate(context.Background())
+	if err != nil {
+		it.T.Logf("error detected during container termination: %v", err)
+	}
 }
