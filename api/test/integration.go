@@ -105,11 +105,11 @@ func (o IntegrationTestWithMocks) tearDown(it *IntegrationTest) {
 
 // IntegrationTestWithBigQuery is an option for integration testing that sets up a BigQuery database test container.
 type IntegrationTestWithBigQuery struct {
-	dataPath string
+	DataPath string
 }
 
 func (o IntegrationTestWithBigQuery) setup(it *IntegrationTest) {
-	container, err := setupBigqueryEmulator(context.Background(), o.dataPath)
+	container, err := setupBigqueryEmulator(context.Background(), o.DataPath)
 	if err != nil {
 		it.T.Fatalf("database setup error: %v", err)
 	}
