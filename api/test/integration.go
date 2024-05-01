@@ -118,7 +118,7 @@ func (o IntegrationTestWithBigQuery) setup(it *IntegrationTest) {
 }
 
 func (o IntegrationTestWithBigQuery) tearDown(it *IntegrationTest) {
-	err := it.Container.Terminate(context.Background())
+	err := it.BqContainer.Terminate(context.Background())
 	if err != nil {
 		it.T.Logf("error detected during container termination: %v", err)
 	}

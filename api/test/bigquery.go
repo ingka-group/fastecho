@@ -36,7 +36,7 @@ func setupBigqueryEmulator(ctx context.Context, dataPath string) (*BigqueryEmula
 		HostConfigModifier: func(config *container.HostConfig) {
 			config.Mounts = append(config.Mounts, mount.Mount{
 				Type:   mount.TypeBind,
-				Source: executionPath + dataPath,
+				Source: fmt.Sprintf("%s/%s", executionPath, dataPath),
 				Target: bqMountPath,
 			})
 		},
