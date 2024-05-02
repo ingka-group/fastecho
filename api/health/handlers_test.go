@@ -30,6 +30,12 @@ func TestIntegrationHealthHandler_Ready(t *testing.T) {
 			ExpectCode: http.StatusNoContent,
 		},
 		{
+			Name:       "ok: No database",
+			Method:     http.MethodGet,
+			Handler:    NewHealthHandler(nil).Ready,
+			ExpectCode: http.StatusNoContent,
+		},
+		{
 			Name:   "fail: Ready probe unavailable",
 			Method: http.MethodGet,
 			Handler: func(ctx echo.Context) error {
@@ -63,6 +69,13 @@ func TestIntegrationHealthHandler_Live(t *testing.T) {
 			Name:           "ok: Live probe",
 			Method:         http.MethodGet,
 			Handler:        healthHandler.Live,
+			ExpectCode:     http.StatusOK,
+			ExpectResponse: "live-probe-ok",
+		},
+		{
+			Name:           "ok: No database",
+			Method:         http.MethodGet,
+			Handler:        NewHealthHandler(nil).Live,
 			ExpectCode:     http.StatusOK,
 			ExpectResponse: "live-probe-ok",
 		},
