@@ -27,13 +27,13 @@ func TestIntegrationHealthHandler_Ready(t *testing.T) {
 			Name:       "ok: Ready probe",
 			Method:     http.MethodGet,
 			Handler:    healthHandler.Ready,
-			ExpectCode: http.StatusNoContent,
+			ExpectCode: http.StatusOK,
 		},
 		{
 			Name:       "ok: No database",
 			Method:     http.MethodGet,
 			Handler:    NewHealthHandler(nil).Ready,
-			ExpectCode: http.StatusNoContent,
+			ExpectCode: http.StatusOK,
 		},
 		{
 			Name:   "fail: Ready probe unavailable",

@@ -33,7 +33,7 @@ func (h *HealthHandler) Ready(ctx echo.Context) error {
 		return ctx.NoContent(http.StatusServiceUnavailable)
 	}
 
-	return ctx.NoContent(http.StatusNoContent)
+	return ctx.NoContent(http.StatusOK)
 }
 
 // Live performs a live check.
