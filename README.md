@@ -6,6 +6,7 @@ A collection of Golang utils that can be used between multiple microservices
 - `agg`: A small aggregation package that helps with common use cases like aggregating by IKEA
   weeks. Read the [documentation](./agg/README.md) for details.
 - `api`: Contains common handlers for building REST APIs and boilerplate code for testing (e.g. integration with testcontainers).
+- `core`: By using the core library you can set up the service configuration by providing your own custom env variables and specifying whether a postgres database is needed. See the [inner README file](/api/core/README.md) for more info.
 - `docs`: A utility to generate a Golang file with the functions and their documentation instructed to look up. Under the hood
   the `go doc` is used. This is particularly useful to allow `swaggo` to generate the OpenAPI docs for handlers that do not
   directly exist in the codebase of the repository that is using `ocp-go-utils`. In such cases, we have to create dummy functions
