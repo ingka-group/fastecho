@@ -10,7 +10,7 @@ import (
 )
 
 // DBConfig is the struct that contains the database configuration.
-type DbConfig struct {
+type DBConfig struct {
 	Hostname        string
 	Port            int
 	Name            string
@@ -24,13 +24,13 @@ type DbConfig struct {
 }
 
 // NewDBConfig creates a database configuration from the environment variables.
-func NewDBConfig() (*DbConfig, error) {
+func NewDBConfig() (*DBConfig, error) {
 	lifetime, err := time.ParseDuration(Env[DBMaxConnLifeTime].Value)
 	if err != nil {
 		lifetime = time.Hour
 	}
 
-	return &DbConfig{
+	return &DBConfig{
 		Hostname:        Env[DBHostname].Value,
 		Port:            Env[DBPort].IntValue,
 		Name:            Env[DBName].Value,
@@ -45,7 +45,7 @@ func NewDBConfig() (*DbConfig, error) {
 }
 
 // BuildDSN builds the Data Source Name (DSN) which represents the database connection string.
-func (c *DbConfig) BuildDSN() (string, error) {
+func (c *DBConfig) BuildDSN() (string, error) {
 	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%v TimeZone=%s",
 		c.Hostname,
 		c.Username,
@@ -57,7 +57,7 @@ func (c *DbConfig) BuildDSN() (string, error) {
 }
 
 // NewDB creates a new database based on the configuration given.
-func NewDB(DbConfig *DbConfig) (*gorm.DB, error) {
+func NewDB(DbConfig *DBConfig) (*gorm.DB, error) {
 	dsn, err := DbConfig.BuildDSN()
 	if err != nil {
 		return nil, err

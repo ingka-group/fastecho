@@ -34,17 +34,16 @@ func Run() error {
 	props["myCoolProp"] = 123
 	// props can also be nil if not needed
 
-	s, err := core.NewService(config.EnvVar{
-		consts.GcpProjectID: {},
-		consts.SwaggerUITitle: {
-			DefaultValue: "Sales Actuals API",
+	s, err := core.NewServer(config.EnvVar{
+		"EXTRA_VAR_1": {
+			DefaultValue: "value",
 		},
-		consts.ServiceName: {
-			DefaultValue: "ffp-sales-actuals-connector-v3",
+		"EXTRA_VAR_2": {
+			DefaultValue: "value",
 		},
 	},
 		props,
-		consts.HasPostgresDb,
+		true,   // withPostgres
 	)
 	if err != nil {
 		return err
@@ -57,10 +56,10 @@ func Run() error {
 	}
 
 	// bind the validator to echo
-	s.E.Validator = s.Validator
+	s.Echo.Validator = s.Validator
 
 	// write your own route config like this one:
-	configureRoutes(s.E)
+	configureRoutes(s.Echo)
 
 	// launch the service!
 	return s.Run()
@@ -87,7 +86,7 @@ func configureRoutes(e *echo.Echo) error {
 
 ## Middlewares
 
-Are simply added by using `s.E` which is your current instance of Echo:
+Are simply added by using `s.Echo` which is your current instance of Echo:
 
 ```go
 e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
@@ -102,4 +101,4 @@ You can inject custom properties into the service context via props. This object
 
 ## Migration
 
-This lib is using goose for migrations rather than gorm Automigrate
+This lib is using goose for migrations rather than gorm Automigrate.

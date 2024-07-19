@@ -13,6 +13,7 @@ import (
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -21,12 +22,11 @@ import (
 	"github.com/ingka-group-digital/ocp-go-utils/api/core/context"
 	"github.com/ingka-group-digital/ocp-go-utils/api/core/router"
 	"github.com/ingka-group-digital/ocp-go-utils/echozap"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // Server is a wrapper around Echo
 type Server struct {
-	E         *echo.Echo
+	Echo      *echo.Echo
 	Database  *gorm.DB
 	Validator *router.Validator
 
@@ -48,7 +48,7 @@ func NewServer(extraEnvVars *config.EnvVar, props *map[string]interface{}, withP
 func (s *Server) setup(extraEnvVars *config.EnvVar, props *map[string]interface{}, withPostgres bool) error {
 	var err error
 
-	s.E = echo.New()
+	s.Echo = echo.New()
 
 	s.Validator, err = router.NewValidator()
 	if err != nil {
@@ -64,7 +64,7 @@ func (s *Server) setup(extraEnvVars *config.EnvVar, props *map[string]interface{
 	// Set the database to be picked up by the caller
 	s.Database = cfg.Database
 
-	configureMiddlewares(s.E, cfg.Logger, cfg.Tracer, props)
+	configureMiddlewares(s.Echo, cfg.Logger, cfg.Tracer, props)
 
 	return nil
 }
@@ -138,8 +138,8 @@ func (s *Server) Run() error {
 	// Start server
 	go func() {
 		serviceURL := fmt.Sprintf("%s:%v", config.Env[config.Hostname].Value, config.Env[config.Port].Value)
-		if err := s.E.Start(serviceURL); err != nil && err != http.ErrServerClosed {
-			s.E.Logger.Panicf("Shutting down the server! \n%s", err)
+		if err := s.Echo.Start(serviceURL); err != nil && err != http.ErrServerClosed {
+			s.Echo.Logger.Panicf("Shutting down the server! \n%s", err)
 		}
 	}()
 
@@ -152,6 +152,6 @@ func (s *Server) Run() error {
 	ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 10*time.Second)
 	defer cancel()
 
-	err := s.E.Shutdown(ctx)
+	err := s.Echo.Shutdown(ctx)
 	return err
 }

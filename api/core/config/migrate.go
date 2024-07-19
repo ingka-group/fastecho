@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// migrateDB migrates the database to the latest version.
+// migrateDB migrates the database to the latest version using goose.
 func migrateDB(db *sql.DB, log *zap.Logger) error {
 	provider, err := goose.NewProvider(
 		goose.DialectPostgres,
