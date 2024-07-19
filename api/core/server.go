@@ -13,22 +13,25 @@ import (
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 
 	"github.com/ingka-group-digital/ocp-go-utils/api/core/config"
 	"github.com/ingka-group-digital/ocp-go-utils/api/core/context"
 	"github.com/ingka-group-digital/ocp-go-utils/api/core/router"
 	"github.com/ingka-group-digital/ocp-go-utils/echozap"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // Server is a wrapper around Echo
 type Server struct {
-	E              *echo.Echo
-	cfg            *config.ServiceConfig
+	E         *echo.Echo
+	Database  *gorm.DB
+	Validator *router.Validator
+
+	// Not accessible from another package
 	tracerProvider *sdktrace.TracerProvider
-	Validator      *router.Validator
 }
 
 // NewServer returns a new instance of Server which contains an Echo server
@@ -52,12 +55,16 @@ func (s *Server) setup(extraEnvVars *config.EnvVar, props *map[string]interface{
 		return err
 	}
 
-	s.cfg, s.tracerProvider, err = config.NewServiceConfig(extraEnvVars, withPostgres)
+	var cfg *config.ServiceConfig
+	cfg, s.tracerProvider, err = config.NewServiceConfig(extraEnvVars, withPostgres)
 	if err != nil {
 		return err
 	}
 
-	configureMiddlewares(s.E, s.cfg.Logger, s.cfg.Tracer, props)
+	// Set the database to be picked up by the caller
+	s.Database = cfg.Database
+
+	configureMiddlewares(s.E, cfg.Logger, cfg.Tracer, props)
 
 	return nil
 }
