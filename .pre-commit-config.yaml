@@ -26,6 +26,12 @@ repos:
         language: system
         require_serial: true
 
+      - id: make-clean-tags
+        name: make clean-tags
+        entry: make clean-tags
+        language: system
+        require_serial: true
+
   - repo: *golang-repo
     rev: *golang-rev
     hooks:

@@ -62,3 +62,9 @@ bin/go-import-lint:
 	GOBIN=$(GOBIN) go install -v github.com/hedhyw/go-import-lint/cmd/go-import-lint@latest
 	@echo "Verifying go-import-lint installation..."
 	${GOBIN}/go-import-lint --help
+
+.PHONY: clean-tags
+clean-tags: # @HELP cleans local git tags
+clean-tags:
+	git tag -l | xargs git tag -d
+	git fetch --tags
