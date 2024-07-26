@@ -35,7 +35,7 @@ type Server struct {
 }
 
 // NewServer returns a new instance of Server which contains an Echo server
-func NewServer(extraEnvVars *config.EnvVar, props *map[string]interface{}, withPostgres bool) (*Server, error) {
+func NewServer(extraEnvVars *config.EnvVar, props any, withPostgres bool) (*Server, error) {
 	s := &Server{}
 	err := s.setup(extraEnvVars, props, withPostgres)
 	if err != nil {
@@ -45,7 +45,7 @@ func NewServer(extraEnvVars *config.EnvVar, props *map[string]interface{}, withP
 }
 
 // setup sets up the service with the given environment variables and an optional postgres db layer
-func (s *Server) setup(extraEnvVars *config.EnvVar, props *map[string]interface{}, withPostgres bool) error {
+func (s *Server) setup(extraEnvVars *config.EnvVar, props any, withPostgres bool) error {
 	var err error
 
 	s.Echo = echo.New()
@@ -70,7 +70,7 @@ func (s *Server) setup(extraEnvVars *config.EnvVar, props *map[string]interface{
 }
 
 // configureMiddlewares configures all the middlewares for Echo.
-func configureMiddlewares(e *echo.Echo, logger *zap.Logger, tracer *trace.Tracer, props *map[string]interface{}) {
+func configureMiddlewares(e *echo.Echo, logger *zap.Logger, tracer *trace.Tracer, props any) {
 	// CORS support
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},
@@ -128,6 +128,10 @@ func isHealthRoute(ctx echo.Context) bool {
 
 // Run starts the server and listens for interrupt signals to gracefully shut down the server
 func (s *Server) Run() error {
+	// Set by default the validator to the echo instance to use the go-playground/validator/v10
+	// Custom validations can be registered by the called before calling server.Run()
+	s.Echo.Validator = s.Validator
+
 	// defer the shutdown of the tracer provider
 	defer func() {
 		if s.tracerProvider != nil {

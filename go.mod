@@ -21,6 +21,7 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8
 	gorm.io/driver/postgres v1.5.6
+	gorm.io/driver/sqlite v1.5.6
 	gorm.io/gorm v1.25.7
 )
 
@@ -74,7 +75,6 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.28.0 // indirect
 	go.opentelemetry.io/otel/metric v1.28.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
-	gorm.io/driver/sqlite v1.5.6 // indirect
 )
 
 require (

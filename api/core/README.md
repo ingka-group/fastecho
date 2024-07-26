@@ -4,6 +4,8 @@ By using the core library you can set up the service configuration by providing 
 
 The service covers a lot of the basic setup like Env vars, (optional) database setup, validator, middlewares and running the service are abstracted away so that you don't have to think about it.
 
+The [ffp-planning-platform-go-service-template](https://github.com/ingka-group-digital/ffp-planning-platform-go-service-template) already leverages this functionality among other packages in ocp-go-utils so that you can start your business-logic development right away.
+
 Note that tracing is enabled only if the `OTEL_TRACING` env var is set to true. The service context is accessible from within each handler function to add tracing:
 
 ```go
@@ -12,7 +14,7 @@ import (
 )
 
 func (h *Handler) GetCountrySales(ctx echo.Context) error {
-	sctx := context.GetServiceContext(ctx)
+	sctx := context.GetServiceContext[any](ctx)
 	log := sctx.ZapLogger
 
 	...
@@ -22,19 +24,26 @@ func (h *Handler) GetCountrySales(ctx echo.Context) error {
 The following example explains each step in the full service setup.
 
 The required ENV vars are:
-* GcpProjectID
 * SwaggerUITitle
 * ServiceName
 
+However, you can pass extra variables if required by your service.
+
 Example usage:
 ```go
-func Run() error {
+func Run() {
 	// provide custom env vars, optional custom props to service context and specify whether you need a DB connection set up
 	props := make(map[string]interface{})
 	props["myCoolProp"] = 123
 	// props can also be nil if not needed
 
 	s, err := core.NewServer(config.EnvVar{
+		"SWAGGER_UI_TITLE": {
+            DefaultValue: "My Service",
+        },
+        "SERVICE_NAME": {
+            DefaultValue: "my-service",
+        }
 		"EXTRA_VAR_1": {
 			DefaultValue: "value",
 		},
@@ -46,23 +55,23 @@ func Run() error {
 		true,   // withPostgres
 	)
 	if err != nil {
-		return err
+        log.Fatalf("Failed to initialize server! \n %s", err)
 	}
 
 	// define custom validations for your handlers
-	s.Validator.RegisterValidator("year_week", validator.ValidateYearWeek)
-	if err != nil {
-		return err
-	}
-
-	// bind the validator to echo
-	s.Echo.Validator = s.Validator
+	registerValidations(s.Validator)
 
 	// write your own route config like this one:
 	configureRoutes(s.Echo)
+	if err != nil {
+        log.Fatalf("Failed to configure routes! \n %s", err)
+    }
 
 	// launch the service!
-	return s.Run()
+	log.Println("Starting service...")
+	if err := s.Run(); err != nil {
+        log.Fatalf("Service stopped! \n %s", err)
+    }
 }
 
 func configureRoutes(e *echo.Echo) error {
@@ -73,6 +82,8 @@ func configureRoutes(e *echo.Echo) error {
 	err := router.NewRouter(e).
 		AddRoute(v1, "/health/ready", healthHandler.Ready, http.MethodGet).
 		AddRoute(v1, "/health/live", healthHandler.Live, http.MethodGet).
+		AddMetrics(e).
+		AddSwagger(e).
 		Init()
 	if err != nil {
 		return err
@@ -81,6 +92,10 @@ func configureRoutes(e *echo.Echo) error {
 	router.PrintRoutes(e)
 
 	return nil
+}
+
+func registerValidations(validator *router.Validator) {
+    validator.Vdt.RegisterStructValidation(daterange.ValidateISODateRangeBasic(), daterange.ISODateRangeBasic{})
 }
 ```
 
@@ -101,4 +116,4 @@ You can inject custom properties into the service context via props. This object
 
 ## Migration
 
-This lib is using goose for migrations rather than gorm Automigrate.
+This lib is using `goose` for migrations rather than gorm Automigrate.
