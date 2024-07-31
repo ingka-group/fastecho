@@ -170,8 +170,8 @@ func validateISODateRangeBasic(sl validator.StructLevel, dateRange *ISODateRange
 	}
 }
 
-// GormQueryAddDateRange adds a date range to a GORM query based on the from/to and the timeframe.
-func GormQueryAddDateRange(db *gorm.DB, from, to date.ISODate, timeframe Timeframe) *gorm.DB {
+// AddToGormQuery adds a date range to a GORM query based on the from/to and the timeframe.
+func AddToGormQuery(db *gorm.DB, from, to date.ISODate, timeframe Timeframe) *gorm.DB {
 	_, fromWeek, fromMonth, fromYear := timeutils.DateToDDWWMMYYYY(from.Date())
 	_, toWeek, toMonth, toYear := timeutils.DateToDDWWMMYYYY(to.Date())
 
@@ -228,8 +228,8 @@ func GormQueryAddDateRange(db *gorm.DB, from, to date.ISODate, timeframe Timefra
 	return db
 }
 
-// StringQueryAddDateRange adds a date range to a query represented as a string based on the from/to and the timeframe.
-func StringQueryAddDateRange(from, to date.ISODate, timeframe Timeframe) string {
+// GetStringQuery returns a query represented as a string based on the from/to and the timeframe.
+func GetStringQuery(from, to date.ISODate, timeframe Timeframe) string {
 	_, fromWeek, fromMonth, fromYear := timeutils.DateToDDWWMMYYYY(from.Date())
 	_, toWeek, toMonth, toYear := timeutils.DateToDDWWMMYYYY(to.Date())
 

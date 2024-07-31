@@ -12,7 +12,7 @@ import (
 	"github.com/ingka-group-digital/ocp-go-utils/date"
 )
 
-func TestStringQueryAddDateRange(t *testing.T) {
+func TestGetStringQuery(t *testing.T) {
 	type args struct {
 		from      date.ISODate
 		to        date.ISODate
@@ -116,14 +116,14 @@ func TestStringQueryAddDateRange(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := StringQueryAddDateRange(tt.args.from, tt.args.to, tt.args.timeframe); got != tt.want {
-				t.Errorf("StringQueryAddDateRange() = %v, want %v", got, tt.want)
+			if got := GetStringQuery(tt.args.from, tt.args.to, tt.args.timeframe); got != tt.want {
+				t.Errorf("GetStringQuery() = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestGormQueryAddDateRange(t *testing.T) {
+func TestAddToGormQuery(t *testing.T) {
 	type args struct {
 		from      date.ISODate
 		to        date.ISODate
@@ -234,7 +234,7 @@ func TestGormQueryAddDateRange(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sql := db.ToSQL(func(tx *gorm.DB) *gorm.DB {
-				stmt := GormQueryAddDateRange(db.Table("test").Select("*"), tt.args.from, tt.args.to, tt.args.timeframe)
+				stmt := AddToGormQuery(db.Table("test").Select("*"), tt.args.from, tt.args.to, tt.args.timeframe)
 				return stmt.Find(&[]struct{}{})
 			})
 
