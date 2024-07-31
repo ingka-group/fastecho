@@ -16,61 +16,92 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 
 	"github.com/ingka-group-digital/ocp-go-utils/api/core/config"
 	"github.com/ingka-group-digital/ocp-go-utils/api/core/context"
+	"github.com/ingka-group-digital/ocp-go-utils/api/core/env"
 	"github.com/ingka-group-digital/ocp-go-utils/api/core/router"
 	"github.com/ingka-group-digital/ocp-go-utils/echozap"
 )
 
-// Server is a wrapper around Echo
-type Server struct {
+// ServerConfig serves as input configuration for the service
+type ServerConfig struct {
+	ExtraEnvVars        env.EnvVars
+	ValidationRegistrar func(v *router.Validator) error
+	Routes              []router.Route
+	ContextProps        any
+	Options             config.Options
+}
+
+// server is a wrapper around Echo
+type server struct {
 	Echo      *echo.Echo
-	Database  *gorm.DB
 	Validator *router.Validator
 
 	// Not accessible from another package
+	router         *router.Router
 	tracerProvider *sdktrace.TracerProvider
 }
 
+func newServer() *server {
+	return &server{}
+}
+
 // NewServer returns a new instance of Server which contains an Echo server
-func NewServer(extraEnvVars *config.EnvVar, props any, withPostgres bool) (*Server, error) {
-	s := &Server{}
-	err := s.setup(extraEnvVars, props, withPostgres)
+func NewServer(cfg ServerConfig) error {
+	// set up the server
+	s := newServer()
+	envs, err := s.setup(cfg)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return s, nil
+
+	// run it!
+	return s.run(envs[env.Hostname].Value, envs[env.Port].Value)
 }
 
 // setup sets up the service with the given environment variables and an optional postgres db layer
-func (s *Server) setup(extraEnvVars *config.EnvVar, props any, withPostgres bool) error {
+func (s *server) setup(serverCfg ServerConfig) (env.EnvVars, error) {
 	var err error
 
+	// set up echo
 	s.Echo = echo.New()
 
+	// set up validation
 	s.Validator, err = router.NewValidator()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	var cfg *config.ServiceConfig
-	cfg, s.tracerProvider, err = config.NewServiceConfig(extraEnvVars, withPostgres)
+	// register custom validations
+	err = serverCfg.ValidationRegistrar(s.Validator)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	s.Echo.Validator = s.Validator
+
+	// set up service config
+	var cfg *config.ServiceConfig
+	cfg, s.tracerProvider, err = config.NewServiceConfig(serverCfg.ExtraEnvVars, serverCfg.Options)
+	if err != nil {
+		return nil, err
 	}
 
-	// Set the database to be picked up by the caller
-	s.Database = cfg.Database
+	// set up middlewares
+	configureMiddlewares(s.Echo, cfg.Logger, serverCfg.Options.SkipMetrics, cfg.Tracer, serverCfg.ContextProps)
 
-	configureMiddlewares(s.Echo, cfg.Logger, cfg.Tracer, props)
+	// set up routes
+	s.router = router.NewRouter(serverCfg.Routes, serverCfg.Options)
+	err = s.router.RegisterRoutes(s.Echo, cfg.Env)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil
+	return cfg.Env, err
 }
 
 // configureMiddlewares configures all the middlewares for Echo.
-func configureMiddlewares(e *echo.Echo, logger *zap.Logger, tracer *trace.Tracer, props any) {
+func configureMiddlewares(e *echo.Echo, logger *zap.Logger, SkipMetrics bool, tracer *trace.Tracer, props any) {
 	// CORS support
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"*"},
@@ -104,8 +135,10 @@ func configureMiddlewares(e *echo.Echo, logger *zap.Logger, tracer *trace.Tracer
 		},
 	}))
 
-	// Metrics
-	e.Use(echoprometheus.NewMiddleware("echo_http"))
+	if !SkipMetrics {
+		// Metrics
+		e.Use(echoprometheus.NewMiddleware("echo_http"))
+	}
 
 	// Recover
 	e.Use(middleware.Recover())
@@ -127,11 +160,7 @@ func isHealthRoute(ctx echo.Context) bool {
 }
 
 // Run starts the server and listens for interrupt signals to gracefully shut down the server
-func (s *Server) Run() error {
-	// Set by default the validator to the echo instance to use the go-playground/validator/v10
-	// Custom validations can be registered by the called before calling server.Run()
-	s.Echo.Validator = s.Validator
-
+func (s *server) run(host string, port string) error {
 	// defer the shutdown of the tracer provider
 	defer func() {
 		if s.tracerProvider != nil {
@@ -141,7 +170,7 @@ func (s *Server) Run() error {
 
 	// Start server
 	go func() {
-		serviceURL := fmt.Sprintf("%s:%v", config.Env[config.Hostname].Value, config.Env[config.Port].Value)
+		serviceURL := fmt.Sprintf("%s:%v", host, port)
 		if err := s.Echo.Start(serviceURL); err != nil && err != http.ErrServerClosed {
 			s.Echo.Logger.Panicf("Shutting down the server! \n%s", err)
 		}

@@ -1,17 +1,16 @@
-package config
+package database
 
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"log"
 	"os"
 
 	"github.com/pressly/goose/v3"
-	"go.uber.org/zap"
 )
 
 // migrateDB migrates the database to the latest version using goose.
-func migrateDB(db *sql.DB, log *zap.Logger) error {
+func migrateDB(db *sql.DB) error {
 	provider, err := goose.NewProvider(
 		goose.DialectPostgres,
 		db,
@@ -32,9 +31,7 @@ func migrateDB(db *sql.DB, log *zap.Logger) error {
 			return results[i].Error
 		}
 
-		log.Info(
-			fmt.Sprintf("[%d] Migration applied: %s", i+1, results[i].Source.Path),
-		)
+		log.Println("[", i+1, "] Migration applied:", results[i].Source.Path)
 	}
 
 	return nil

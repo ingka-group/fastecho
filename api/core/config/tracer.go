@@ -11,11 +11,7 @@ import (
 )
 
 // newTracer creates a new OTEL tracer.
-func newTracer() (*sdktrace.TracerProvider, *oteltrace.Tracer, error) {
-	if !Env[otelTracing].BooleanValue {
-		return nil, nil, nil
-	}
-
+func newTracer(serviceName string) (*sdktrace.TracerProvider, *oteltrace.Tracer, error) {
 	exporter, err := otlptracehttp.New(gocontext.Background())
 	if err != nil {
 		return nil, nil, err
@@ -33,6 +29,6 @@ func newTracer() (*sdktrace.TracerProvider, *oteltrace.Tracer, error) {
 		),
 	)
 
-	tracer := tp.Tracer(Env[ServiceName].Value)
+	tracer := tp.Tracer(serviceName)
 	return tp, &tracer, nil
 }

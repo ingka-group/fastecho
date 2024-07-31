@@ -9,86 +9,113 @@ import (
 	swguicdn "github.com/swaggest/swgui/v5cdn"
 
 	"github.com/ingka-group-digital/ocp-go-utils/api/core/config"
+	"github.com/ingka-group-digital/ocp-go-utils/api/core/env"
 	"github.com/ingka-group-digital/ocp-go-utils/api/core/errs"
+	"github.com/ingka-group-digital/ocp-go-utils/api/health"
 )
 
 // Router contains all the available routes of the service.
 type Router struct {
-	routes []Route
+	options config.Options
+	routes  []Route
 }
 
-// Route contains the details for a route.
+// Route contains the details of a route.
 type Route struct {
-	group       *echo.Group
-	path        string
-	handlerFunc echo.HandlerFunc
-	restVerb    string
+	Group       string
+	Path        string
+	HandlerFunc func(ctx echo.Context) error
+	RestVerb    string
 }
 
 // NewRouter creates a new Router.
-func NewRouter() *Router {
+func NewRouter(routes []Route, opts config.Options) *Router {
+	// bind routes
+	r := []Route{}
+	r = append(r, routes...)
+
 	return &Router{
-		routes: []Route{},
+		routes:  r,
+		options: opts,
 	}
 }
 
-// AddRoute adds a route.
-func (r *Router) AddRoute(group *echo.Group, path string, handlerFunc echo.HandlerFunc, restVerb string) *Router {
-	r.routes = append(r.routes, Route{
-		group:       group,
-		path:        path,
-		handlerFunc: handlerFunc,
-		restVerb:    restVerb,
-	})
+func (r *Router) RegisterRoutes(e *echo.Echo, envs env.EnvVars) error {
+	if !r.options.HealthChecks.Skip {
+		healthHandler := health.NewHealthHandler(r.options.HealthChecks.DB)
+		r.routes = append(r.routes, Route{
+			Path:        "/health/ready",
+			HandlerFunc: healthHandler.Ready,
+			RestVerb:    http.MethodGet,
+		})
+		r.routes = append(r.routes, Route{
+			Path:        "/health/live",
+			HandlerFunc: healthHandler.Live,
+			RestVerb:    http.MethodGet,
+		})
+	}
+	err := r.setup(e)
+	if err != nil {
+		return err
+	}
 
-	return r
+	if !r.options.SkipMetrics {
+		r.addMetrics(e)
+	}
+	if !r.options.SkipSwagger {
+		r.addSwagger(e, envs[env.SwaggerUITitle].Value, envs[env.SwaggerJSONPath].Value)
+	}
+
+	printRoutes(e)
+
+	return nil
 }
 
 // AddMetrics adds a handler for metrics e.
-func (r *Router) AddMetrics(e *echo.Echo) *Router {
+func (r *Router) addMetrics(e *echo.Echo) *Router {
 	e.GET("/metrics", echoprometheus.NewHandler())
 	return r
 }
 
 const (
-	SwaggerPath = "/swagger"
+	swaggerPath = "/swagger"
 )
 
 // AddSwagger adds a handler for swagger documentation to the given route.
-func (r *Router) AddSwagger(e *echo.Echo) *Router {
+func (r *Router) addSwagger(e *echo.Echo, title, path string) *Router {
 	// Register the swagger.json to the server as a static resource
 	e.File("swagger/swagger.json", "api/swagger.json")
 
-	e.GET(SwaggerPath, ServeSwaggerUI())
+	e.GET(swaggerPath, serveSwaggerUI(title, path))
 	return r
 }
 
-// ServeSwaggerUI serves the swagger UI.
-func ServeSwaggerUI() echo.HandlerFunc {
+// serveSwaggerUI serves the swagger UI.
+func serveSwaggerUI(title, path string) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		swguicdn.NewHandler(
-			config.Env[config.SwaggerUITitle].Value, config.Env[config.SwaggerJSONPath].Value, SwaggerPath,
+			title, path, swaggerPath,
 		).ServeHTTP(c.Response().Writer, c.Request())
 
 		return nil
 	}
 }
 
-// Init configures the routes for echo.
-func (r *Router) Init() error {
+// setup configures the routes for echo.
+func (r *Router) setup(e *echo.Echo) error {
 	for _, route := range r.routes {
-		switch route.restVerb {
+		switch route.RestVerb {
 		case http.MethodGet:
-			route.group.GET(route.path, route.handlerFunc)
+			e.Group(route.Group).GET(route.Path, route.HandlerFunc)
 		case http.MethodPost:
-			route.group.POST(route.path, route.handlerFunc)
+			e.Group(route.Group).POST(route.Path, route.HandlerFunc)
 		case http.MethodPatch:
-			route.group.PATCH(route.path, route.handlerFunc)
+			e.Group(route.Group).PATCH(route.Path, route.HandlerFunc)
 		case http.MethodDelete:
-			route.group.DELETE(route.path, route.handlerFunc)
+			e.Group(route.Group).DELETE(route.Path, route.HandlerFunc)
 		default:
 			return errs.New(
-				fmt.Sprintf("not suitable router method found for: %s", route.restVerb),
+				fmt.Sprintf("not suitable router method found for: %s", route.RestVerb),
 			)
 		}
 	}
@@ -97,7 +124,7 @@ func (r *Router) Init() error {
 }
 
 // PrintRoutes prints all the available routes registered in the Echo framework.
-func PrintRoutes(e *echo.Echo) {
+func printRoutes(e *echo.Echo) {
 	fmt.Println("\nRegistered routes:")
 	for _, route := range e.Routes() {
 		fmt.Println(route.Method, " ", route.Path)
