@@ -1,4 +1,6 @@
-# core package
+# FastEcho
+
+<img src="fastecho.png" alt="drawing" style="width:100%;"/>
 
 By using the core library you can set up the service configuration by providing your own custom env variables and specifying whether a postgres database is needed.
 
@@ -99,21 +101,19 @@ func registerValidations(validator *router.Validator) {
 }
 ```
 
-## Middlewares
-
-Are simply added by using `s.Echo` which is your current instance of Echo:
-
-```go
-e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-	AllowOrigins: []string{"*"},
-	AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
-}))
-```
-
 ## Service context
 
-You can inject custom properties into the service context via props. This object is of type `map[string]interface{}` so you can pass anything into your context to make it accessible in your endpoints
+You can inject custom properties into the service context via props. This object is of type `any` so you can pass anything into your context to make it accessible in your endpoints
 
 ## Migration
 
-This lib is using `goose` for migrations rather than gorm Automigrate.
+This lib is using `goose` for migrations rather than gorm Automigrate. The migrations are expected to be under `db/migrations` in the root of your microservice.
+
+
+## Additional middlewares
+
+*To be supported*
+
+## Environment variables
+
+TODO: docs

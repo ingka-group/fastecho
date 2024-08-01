@@ -1,14 +1,19 @@
-package database
+package fastecho
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
+	"log"
+	"os"
 	"time"
 
+	"github.com/pressly/goose/v3"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/ingka-group-digital/ocp-go-utils/api/core/env"
+	"github.com/ingka-group-digital/ocp-go-utils/fastecho/env"
 )
 
 const (
@@ -24,7 +29,7 @@ const (
 )
 
 var (
-	dbEnv = env.EnvVars{
+	dbEnvs = env.Map{
 		dbHostname: {
 			DefaultValue: "localhost",
 		},
@@ -53,7 +58,7 @@ var (
 	}
 )
 
-// DBConfig is the struct that contains the database configuration.
+// dbConfig contains the database configuration.
 type dbConfig struct {
 	Hostname        string
 	Port            int
@@ -67,35 +72,35 @@ type dbConfig struct {
 	ConnMaxLifetime time.Duration
 }
 
-// NewDB creates a database configuration from the environment variables.
+// NewDB creates a new *gorm.DB the configuration of which is through environment variables.
 func NewDB() (*gorm.DB, error) {
 	var db *gorm.DB
 
 	// options are not used here
-	env, err := env.SetEnv(dbEnv)
+	err := dbEnvs.SetEnv()
 	if err != nil {
 		return nil, err
 	}
 
-	lifetime, err := time.ParseDuration(env[dbMaxConnLifeTime].Value)
+	lifetime, err := time.ParseDuration(dbEnvs[dbMaxConnLifeTime].Value)
 	if err != nil {
 		lifetime = time.Hour
 	}
 
-	dbConfig := &dbConfig{
-		Hostname:        env[dbHostname].Value,
-		Port:            env[dbPort].IntValue,
-		Name:            env[dbName].Value,
-		Username:        env[dbUsername].Value,
-		Password:        env[dbPassword].Value,
-		SSLMode:         env[dbSSLMode].Value,
+	cfg := &dbConfig{
+		Hostname:        dbEnvs[dbHostname].Value,
+		Port:            dbEnvs[dbPort].IntValue,
+		Name:            dbEnvs[dbName].Value,
+		Username:        dbEnvs[dbUsername].Value,
+		Password:        dbEnvs[dbPassword].Value,
+		SSLMode:         dbEnvs[dbSSLMode].Value,
 		TimeZone:        time.UTC,
-		MaxIdleConn:     env[dbMaxIdleConn].IntValue,
-		MaxOpenedConn:   env[dbMaxOpenConn].IntValue,
+		MaxIdleConn:     dbEnvs[dbMaxIdleConn].IntValue,
+		MaxOpenedConn:   dbEnvs[dbMaxOpenConn].IntValue,
 		ConnMaxLifetime: lifetime,
 	}
 
-	db, err = dbConfig.setup()
+	db, err = cfg.setup()
 	if err != nil {
 		return nil, err
 	}
@@ -111,18 +116,6 @@ func NewDB() (*gorm.DB, error) {
 	}
 
 	return db, nil
-}
-
-// BuildDSN builds the Data Source Name (DSN) which represents the database connection string.
-func (c *dbConfig) buildDSN() (string, error) {
-	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%v TimeZone=%s",
-		c.Hostname,
-		c.Username,
-		c.Password,
-		c.Name,
-		c.Port,
-		c.SSLMode,
-		c.TimeZone), nil
 }
 
 // setup creates a new database based on the configuration given.
@@ -152,4 +145,44 @@ func (c *dbConfig) setup() (*gorm.DB, error) {
 	sqlDb.SetConnMaxLifetime(c.ConnMaxLifetime)
 
 	return db, nil
+}
+
+// BuildDSN builds the Data Source Name (DSN) which represents the database connection string.
+func (c *dbConfig) buildDSN() (string, error) {
+	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%v TimeZone=%s",
+		c.Hostname,
+		c.Username,
+		c.Password,
+		c.Name,
+		c.Port,
+		c.SSLMode,
+		c.TimeZone), nil
+}
+
+// migrateDB migrates the database to the latest version using goose.
+func migrateDB(db *sql.DB) error {
+	provider, err := goose.NewProvider(
+		goose.DialectPostgres,
+		db,
+		os.DirFS("db/migrations"),
+	)
+
+	if err != nil {
+		return err
+	}
+
+	results, err := provider.Up(context.Background())
+	if err != nil {
+		return err
+	}
+
+	for i := range results {
+		if results[i].Error != nil {
+			return results[i].Error
+		}
+
+		log.Println("[", i+1, "] Migration applied:", results[i].Source.Path)
+	}
+
+	return nil
 }

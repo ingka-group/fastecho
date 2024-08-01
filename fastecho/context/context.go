@@ -6,7 +6,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// ServiceContext contains the Echo context and the ZapLogger.
+// ServiceContext contains the echo.Context and custom properties vital for a microservice.
 type ServiceContext[T any] struct {
 	echo.Context
 	ZapLogger *zap.Logger
@@ -14,7 +14,7 @@ type ServiceContext[T any] struct {
 	Props     T
 }
 
-// BindValidate binds the data to the given objects and validates the input given.
+// BindValidate binds the data to the given interface and validates the input given using validator/10.
 func (c *ServiceContext[T]) BindValidate(i interface{}) error {
 	if err := c.Bind(i); err != nil {
 		return err
@@ -32,7 +32,7 @@ func GetServiceContext[T any](ctx echo.Context) *ServiceContext[T] {
 	return ctx.(*ServiceContext[T])
 }
 
-// ServiceContextMiddleware injects objects to echo context.
+// ServiceContextMiddleware injects objects to echo.Context.
 func ServiceContextMiddleware[T any](logger *zap.Logger, tracer *trace.Tracer, props T) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ctx echo.Context) error {

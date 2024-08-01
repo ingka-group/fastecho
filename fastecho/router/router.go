@@ -7,17 +7,26 @@ import (
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	swguicdn "github.com/swaggest/swgui/v5cdn"
+	"gorm.io/gorm"
 
-	"github.com/ingka-group-digital/ocp-go-utils/api/core/config"
-	"github.com/ingka-group-digital/ocp-go-utils/api/core/env"
-	"github.com/ingka-group-digital/ocp-go-utils/api/core/errs"
-	"github.com/ingka-group-digital/ocp-go-utils/api/health"
+	"github.com/ingka-group-digital/ocp-go-utils/fastecho/errs"
+	"github.com/ingka-group-digital/ocp-go-utils/fastecho/health"
 )
 
 // Router contains all the available routes of the service.
 type Router struct {
-	options config.Options
-	routes  []Route
+	Routes []Route
+}
+
+// Config contains the configuration for the router.
+type Config struct {
+	Echo             *echo.Echo
+	Routes           []Route
+	SkipMetrics      bool
+	SkipHealthChecks bool
+	HealthChecksDB   *gorm.DB
+	SwaggerTitle     string
+	SwaggerPath      string
 }
 
 // Route contains the details of a route.
@@ -29,49 +38,43 @@ type Route struct {
 }
 
 // NewRouter creates a new Router.
-func NewRouter(routes []Route, opts config.Options) *Router {
-	// bind routes
-	r := []Route{}
-	r = append(r, routes...)
-
-	return &Router{
-		routes:  r,
-		options: opts,
+func NewRouter(cfg Config) (*Router, error) {
+	r := &Router{
+		Routes: cfg.Routes,
 	}
-}
 
-func (r *Router) RegisterRoutes(e *echo.Echo, envs env.EnvVars) error {
-	if !r.options.HealthChecks.Skip {
-		healthHandler := health.NewHealthHandler(r.options.HealthChecks.DB)
-		r.routes = append(r.routes, Route{
+	if !cfg.SkipHealthChecks {
+		healthHandler := health.NewHandler(cfg.HealthChecksDB)
+
+		r.Routes = append(r.Routes, Route{
 			Path:        "/health/ready",
 			HandlerFunc: healthHandler.Ready,
 			RestVerb:    http.MethodGet,
 		})
-		r.routes = append(r.routes, Route{
+
+		r.Routes = append(r.Routes, Route{
 			Path:        "/health/live",
 			HandlerFunc: healthHandler.Live,
 			RestVerb:    http.MethodGet,
 		})
 	}
-	err := r.setup(e)
+	err := r.setup(cfg.Echo)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if !r.options.SkipMetrics {
-		r.addMetrics(e)
-	}
-	if !r.options.SkipSwagger {
-		r.addSwagger(e, envs[env.SwaggerUITitle].Value, envs[env.SwaggerJSONPath].Value)
+	if !cfg.SkipMetrics {
+		r.addMetrics(cfg.Echo)
 	}
 
-	printRoutes(e)
+	r.addSwagger(cfg.Echo, cfg.SwaggerTitle, cfg.SwaggerPath)
 
-	return nil
+	r.printRoutes(cfg.Echo)
+
+	return r, nil
 }
 
-// AddMetrics adds a handler for metrics e.
+// addMetrics adds a handler for metrics.
 func (r *Router) addMetrics(e *echo.Echo) *Router {
 	e.GET("/metrics", echoprometheus.NewHandler())
 	return r
@@ -81,7 +84,7 @@ const (
 	swaggerPath = "/swagger"
 )
 
-// AddSwagger adds a handler for swagger documentation to the given route.
+// addSwagger adds a handler for swagger documentation to the given route.
 func (r *Router) addSwagger(e *echo.Echo, title, path string) *Router {
 	// Register the swagger.json to the server as a static resource
 	e.File("swagger/swagger.json", "api/swagger.json")
@@ -90,20 +93,9 @@ func (r *Router) addSwagger(e *echo.Echo, title, path string) *Router {
 	return r
 }
 
-// serveSwaggerUI serves the swagger UI.
-func serveSwaggerUI(title, path string) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		swguicdn.NewHandler(
-			title, path, swaggerPath,
-		).ServeHTTP(c.Response().Writer, c.Request())
-
-		return nil
-	}
-}
-
 // setup configures the routes for echo.
 func (r *Router) setup(e *echo.Echo) error {
-	for _, route := range r.routes {
+	for _, route := range r.Routes {
 		switch route.RestVerb {
 		case http.MethodGet:
 			e.Group(route.Group).GET(route.Path, route.HandlerFunc)
@@ -123,10 +115,21 @@ func (r *Router) setup(e *echo.Echo) error {
 	return nil
 }
 
-// PrintRoutes prints all the available routes registered in the Echo framework.
-func printRoutes(e *echo.Echo) {
+// printRoutes prints all the available routes registered in the Echo framework.
+func (r *Router) printRoutes(e *echo.Echo) {
 	fmt.Println("\nRegistered routes:")
 	for _, route := range e.Routes() {
 		fmt.Println(route.Method, " ", route.Path)
+	}
+}
+
+// serveSwaggerUI serves the swagger UI.
+func serveSwaggerUI(title, path string) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		swguicdn.NewHandler(
+			title, path, swaggerPath,
+		).ServeHTTP(c.Response().Writer, c.Request())
+
+		return nil
 	}
 }

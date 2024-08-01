@@ -24,11 +24,13 @@ const (
 	Unauthorized                  // Request is unauthorized to perform this call
 )
 
+// Error represents an error that has a type.
 type Error struct {
 	Type ErrorType
 	Err  error
 }
 
+// Error returns the error message.
 func (e *Error) Error() string {
 	return e.Err.Error()
 }
@@ -117,7 +119,7 @@ func TypeIs(t ErrorType, err error) bool {
 	return false
 }
 
-// GetHTTPCode returns an HTTP status code that corresponds to the error type.
+// GetHTTPCode returns an HTTP status code that corresponds to the ErrorType.
 func GetHTTPCode(err error) int {
 	e, ok := err.(*Error)
 	if !ok {

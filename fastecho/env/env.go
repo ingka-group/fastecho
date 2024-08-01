@@ -12,27 +12,12 @@ import (
 	"github.com/ingka-group-digital/ocp-go-utils/stringutils"
 )
 
-const (
-	Hostname        = "HOSTNAME"
-	Port            = "PORT"
-	EnvType         = "ENV_TYPE"
-	SwaggerUITitle  = "SWAGGER_UI_TITLE"
-	SwaggerJSONPath = "SWAGGER_JSON_PATH"
-	ServiceName     = "SERVICE_NAME"
+// Map is a map of environment variables.
+// We use a *Var as map values are not addressable, i.e. cannot be modified directly.
+type Map map[string]*Var
 
-	OtelTracing = "OTEL_TRACING"
-
-	localEnv = "local"
-	devEnv   = "dev"
-	testEnv  = "test"
-	prodEnv  = "prod"
-)
-
-// EnvVars is a set of environment variables.
-type EnvVars map[string]EnvVar
-
-// EnvVar describes an environment variable and its configuration.
-type EnvVar struct {
+// Var describes an environment variable and its configuration.
+type Var struct {
 	Value        string
 	DefaultValue string
 	IsInteger    bool
@@ -43,37 +28,14 @@ type EnvVar struct {
 	Optional     bool // controls whether an env variable can be missing from the .env file but still declared
 }
 
-var (
-	DefaultEnvVars = EnvVars{
-		Hostname: {
-			DefaultValue: "localhost",
-		},
-		Port: {
-			DefaultValue: "8080",
-			IsInteger:    true,
-		},
-		EnvType: {
-			DefaultValue: devEnv,
-			OneOf:        []string{localEnv, devEnv, testEnv, prodEnv},
-		},
-		SwaggerUITitle: {},
-		SwaggerJSONPath: {
-			// Defines the path to the swagger.json file on the server. This is used by the swagger UI.
-			DefaultValue: "/swagger/swagger.json",
-		},
-		ServiceName: {},
-	}
-)
-
-// SetEnv reads and sets the provided list of env vars
-func SetEnv(envVars EnvVars) (EnvVars, error) {
+// SetEnv reads and sets the provided list of env vars based on the Map.
+func (m Map) SetEnv() error {
 	var messages []string
-	env := EnvVars{}
 
 	// Overwrite passed env var values via env file
 	loadEnvFile(".env")
 
-	for name, metadata := range envVars {
+	for name, metadata := range m {
 		value := os.Getenv(name)
 		if stringutils.IsEmpty(value) {
 			if metadata.Optional || !stringutils.IsEmpty(metadata.DefaultValue) {
@@ -115,14 +77,14 @@ func SetEnv(envVars EnvVars) (EnvVars, error) {
 		}
 
 		metadata.Value = value
-		env[name] = metadata
+		m[name] = metadata
 	}
 
 	if len(messages) > 0 {
-		return nil, errors.New(strings.Join(messages, "; "))
+		return errors.New(strings.Join(messages, "; "))
 	}
 
-	return env, nil
+	return nil
 }
 
 // loadEnvFile loads the variables of an env file. If it's not present, this step is skipped.
@@ -130,6 +92,6 @@ func loadEnvFile(filename string) {
 	err := godotenv.Load(filename)
 	// Don't stop or fail if the .env file doesn't exist.
 	if errors.Is(err, os.ErrNotExist) {
-		fmt.Printf("'%s' configuration file doesn't exist. Don't worry, service will read the environment variables.", filename)
+		fmt.Printf("'%s' configuration file doesn't exist. Don't worry, fastecho will read the environment variables.", filename)
 	}
 }

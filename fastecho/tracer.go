@@ -1,4 +1,4 @@
-package config
+package fastecho
 
 import (
 	gocontext "context"
