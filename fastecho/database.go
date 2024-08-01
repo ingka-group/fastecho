@@ -3,6 +3,7 @@ package fastecho
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -168,6 +169,9 @@ func migrateDB(db *sql.DB) error {
 	)
 
 	if err != nil {
+		if errors.Is(err, goose.ErrNoMigrations) {
+			return nil
+		}
 		return err
 	}
 
