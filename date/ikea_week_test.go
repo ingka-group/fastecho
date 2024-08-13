@@ -40,15 +40,13 @@ func TestDate_IKEAWeek(t *testing.T) {
 			}
 		}
 
-		t.Run(date, func(t *testing.T) {
-			tm, err := time.Parse("2006-01-02", date)
-			if err != nil {
-				log.Fatalf("invalid date format for `%v`: %v", date, err)
-			}
+		tm, err := time.Parse("2006-01-02", date)
+		if err != nil {
+			log.Fatalf("invalid date format for `%v`: %v", date, err)
+		}
 
-			_, gotWeek := IKEAWeek(tm.Year(), int(tm.Month()), tm.Day())
-			assert.Equalf(t, gotWeek, week, "wrong week")
-		})
+		_, gotWeek := IKEAWeek(tm.Year(), int(tm.Month()), tm.Day())
+		assert.Equalf(t, gotWeek, week, "wrong week - %s", date)
 	}
 }
 
