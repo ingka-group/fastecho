@@ -40,16 +40,10 @@ import (
 type ISOTimeframe string
 
 const (
-	// TODO: These should be changed to ISOTimeframeDay, ISOTimeframeWeek, ISOTimeframeMonth, ISOTimeframeYear
-	// Renaming this would break existing consumers of this package. Added deprecated comments to inform about the change.
-
-	ISOTimeframeDay ISOTimeframe = "day"
-
-	ISOTimeframeWeek ISOTimeframe = "week"
-
+	ISOTimeframeDay   ISOTimeframe = "day"
+	ISOTimeframeWeek  ISOTimeframe = "week"
 	ISOTimeframeMonth ISOTimeframe = "month"
-
-	ISOTimeframeYear ISOTimeframe = "year"
+	ISOTimeframeYear  ISOTimeframe = "year"
 )
 
 // String returns the string representation of the Timeframe.
@@ -73,80 +67,46 @@ func (t ISOTimeframe) GetTimeColumns() []string {
 	return []string{ISOTimeframeYear.String()}
 }
 
-func (t ISOTimeframe) GetWhereClause(from, to date.ISODate) (string, []interface{}) {
-	fromMonth, fromYear := int(from.Month()), from.Year()
-	_, fromWeek := from.ISOWeek()
+func (t ISOTimeframe) GetWhereClause(from, to date.ISODate) string {
+	switch t {
+	case ISOTimeframeDay:
+		dateColumn := t.GetTimeColumns()[0]
+		return fmt.Sprintf("%s BETWEEN '%s' AND '%s'", dateColumn, from.String(), to.String())
+	case ISOTimeframeWeek:
+		yearColumn, weekColumn := t.GetTimeColumns()[0], t.GetTimeColumns()[1]
+		fromYear, fromWeek := from.ISOWeek()
+		toYear, toWeek := to.ISOWeek()
 
-	toMonth, toYear := int(to.Month()), to.Year()
-	_, toWeek := to.ISOWeek()
-
-	var query string
-
-	if t == ISOTimeframeWeek || t == ISOTimeframeMonth {
-		var fromWeekOrMonth int
-		var toWeekOrMonth int
-
-		if t == ISOTimeframeWeek {
-			fromWeekOrMonth = fromWeek
-			toWeekOrMonth = toWeek
-		} else {
-			fromWeekOrMonth = fromMonth
-			toWeekOrMonth = toMonth
-		}
-
-		// Here we consider that timeframe is `week` or `month`,
-		// which is the same column names in the database table :)
 		if fromYear == toYear {
-			// special case for weeks when the year changes
-			if t == ISOTimeframeWeek && fromWeek > toWeek {
-				query += fmt.Sprintf(
-					"(year = %d AND week >= %d) OR (year = %d AND week <= %d)", fromYear-1, fromWeek, toYear, toWeek,
-				)
-			} else {
-				// same year
-				query += fmt.Sprintf(
-					"year = %d AND %s BETWEEN %d AND %d", fromYear, t, fromWeekOrMonth, toWeekOrMonth,
-				)
-			}
+			return fmt.Sprintf(`%s = %v AND %s BETWEEN %v AND %v`, yearColumn, fromYear, weekColumn, fromWeek, toWeek)
 		} else {
-			// date range
-			query += fmt.Sprintf(
-				"((year = %d AND %s >= %d )", fromYear, t, fromWeekOrMonth,
-			)
+			// The date range spans multiple years
+			firstYearClause := fmt.Sprintf(`(%s = %v AND %s >= %v)`, yearColumn, fromYear, weekColumn, fromWeek)
+			middleYearsClause := fmt.Sprintf(`(%s > %v AND %s < %v)`, yearColumn, fromYear, yearColumn, toYear)
+			lastYearClause := fmt.Sprintf(`(%s = %v AND %s <= %v)`, yearColumn, toYear, weekColumn, toWeek)
 
-			for year := fromYear + 1; year < toYear+1; year++ {
-				if year != toYear {
-					query += fmt.Sprintf(
-						" OR year = %d", year,
-					)
-				}
-
-				if year == toYear {
-					query += fmt.Sprintf(
-						" OR (year = %d AND %s <= %d )", year, t, toWeekOrMonth,
-					)
-				}
-			}
-
-			query += ")"
+			return fmt.Sprintf(`%s OR %s OR %s`, middleYearsClause, firstYearClause, lastYearClause)
 		}
-	} else if t == ISOTimeframeYear {
+	case ISOTimeframeMonth:
+		yearColumn, monthColumn := t.GetTimeColumns()[0], t.GetTimeColumns()[1]
+		fromMonth, fromYear := int(from.Month()), from.Year()
+		toMonth, toYear := int(to.Month()), to.Year()
+
 		if fromYear == toYear {
-			query += fmt.Sprintf(
-				"year = %d", fromYear,
-			)
+			return fmt.Sprintf(`%s = %v AND %s BETWEEN %v AND %v`, yearColumn, fromYear, monthColumn, fromMonth, toMonth)
 		} else {
-			query += fmt.Sprintf(
-				"year >= %d AND year <= %d", fromYear, toYear,
-			)
+			// The date range spans multiple years
+			firstYearClause := fmt.Sprintf(`(%s = %v AND %s >= %v)`, yearColumn, fromYear, monthColumn, fromMonth)
+			middleYearsClause := fmt.Sprintf(`(%s > %v AND %s < %v)`, yearColumn, fromYear, yearColumn, toYear)
+			lastYearClause := fmt.Sprintf(`(%s = %v AND %s <= %v)`, yearColumn, toYear, monthColumn, toMonth)
+
+			return fmt.Sprintf(`%s OR %s OR %s`, middleYearsClause, firstYearClause, lastYearClause)
 		}
-	} else if t == ISOTimeframeDay {
-		query += fmt.Sprintf(
-			"date BETWEEN '%s' AND '%s'", from, to,
-		)
 	}
 
-	return query, nil
+	// case IKEATimeframeYear:
+	yearColumn := t.GetTimeColumns()[0]
+	return fmt.Sprintf(`%s BETWEEN %v AND %v`, yearColumn, from.Year(), to.Year())
 }
 
 // ISODateRange represents an ISODate range. The Timeframe is required to group the data by the specific date range.

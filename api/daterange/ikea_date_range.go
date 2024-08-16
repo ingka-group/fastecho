@@ -1,6 +1,10 @@
 package daterange
 
-import "github.com/ingka-group-digital/ocp-go-utils/date"
+import (
+	"fmt"
+
+	"github.com/ingka-group-digital/ocp-go-utils/date"
+)
 
 // IKEATimeframe represents the timeframe for an IKEADateRange.
 type IKEATimeframe string
@@ -30,6 +34,57 @@ func (t IKEATimeframe) GetTimeColumns() []string {
 	return []string{"iso_year"}
 }
 
+// GetWhereClause returns the where clause of the timeframe for the given date range.
+// Assumptions:
+// - The date columns are in the format of 'yyyy-mm-dd'.
+func (t IKEATimeframe) GetWhereClause(from, to date.ISODate) string {
+	switch t {
+	case IKEATimeframeDay:
+		dateColumn := t.GetTimeColumns()[0]
+		return fmt.Sprintf("%s BETWEEN '%s' AND '%s'", dateColumn, from.String(), to.String())
+
+	case IKEATimeframeWeek:
+		yearColumn, weekColumn := t.GetTimeColumns()[0], t.GetTimeColumns()[1]
+		fromYear, fromWeek := date.IKEAWeek(from.Year(), int(from.Month()), from.Day())
+		toYear, toWeek := date.IKEAWeek(to.Year(), int(to.Month()), to.Day())
+
+		if fromYear == toYear {
+			return fmt.Sprintf(`%s = %v AND %s BETWEEN %v AND %v`, yearColumn, fromYear, weekColumn, fromWeek, toWeek)
+		} else {
+			// The date range spans multiple years
+			firstYearClause := fmt.Sprintf(`(%s = %v AND %s >= %v)`, yearColumn, fromYear, weekColumn, fromWeek)
+			middleYearsClause := fmt.Sprintf(`(%s > %v AND %s < %v)`, yearColumn, fromYear, yearColumn, toYear)
+			lastYearClause := fmt.Sprintf(`(%s = %v AND %s <= %v)`, yearColumn, toYear, weekColumn, toWeek)
+
+			return fmt.Sprintf(`%s OR %s OR %s`, middleYearsClause, firstYearClause, lastYearClause)
+		}
+
+	// Same logic as for week, but with month instead of week
+	// Duplicating the logic only to avoid non-readable code if we handle month and week together
+	case IKEATimeframeMonth:
+		yearColumn, monthColumn := t.GetTimeColumns()[0], t.GetTimeColumns()[1]
+		fromYear, fromMonth := from.Year(), int(from.Month())
+		toYear, toMonth := to.Year(), int(to.Month())
+
+		// If the date range is within the same year, the query is simple
+		if fromYear == toYear {
+			return fmt.Sprintf(`%s = %v AND %s BETWEEN %v AND %v`, yearColumn, fromYear, monthColumn, fromMonth, toMonth)
+		} else {
+			// The date range spans multiple years
+			firstYearClause := fmt.Sprintf(`(%s = %v AND %s >= %v)`, yearColumn, fromYear, monthColumn, fromMonth)
+			middleYearsClause := fmt.Sprintf(`(%s > %v AND %s < %v)`, yearColumn, fromYear, yearColumn, toYear)
+			lastYearClause := fmt.Sprintf(`(%s = %v AND %s <= %v)`, yearColumn, toYear, monthColumn, toMonth)
+
+			return fmt.Sprintf(`%s OR %s OR %s`, middleYearsClause, firstYearClause, lastYearClause)
+		}
+
+	}
+
+	// case IKEATimeframeYear:
+	yearColumn := t.GetTimeColumns()[0]
+	return fmt.Sprintf(`%s BETWEEN %v AND %v`, yearColumn, from.Year(), to.Year())
+}
+
 // IKEADateRange represents an IKEADate range. The Timeframe is required to group the data by the specific date range.
 type IKEADateRange struct {
 	DateRangeBasic
@@ -42,67 +97,4 @@ func (d IKEADateRange) GetDateRangeBasic() *DateRangeBasic {
 
 func (d IKEADateRange) GetTimeframe() Timeframe {
 	return d.Timeframe
-}
-
-// GetWhereClause returns the where clause of the timeframe for the given date range.
-// Assumptions:
-// - The date columns are in the format of 'yyyy-mm-dd'.
-func (t IKEATimeframe) GetWhereClause(from, to date.ISODate) (string, []interface{}) {
-	ret := ""
-
-	switch t {
-	case IKEATimeframeDay:
-		dateColumn := t.GetTimeColumns()[0]
-		return dateColumn + " BETWEEN ? AND ?", []interface{}{from.String(), to.String()}
-
-	case IKEATimeframeWeek:
-		yearColumn, weekColumn := t.GetTimeColumns()[0], t.GetTimeColumns()[1]
-		fromYear, fromWeek := date.IKEAWeek(from.Year(), int(from.Month()), from.Day())
-		toYear, toWeek := date.IKEAWeek(to.Year(), int(to.Month()), to.Day())
-
-		if fromYear == toYear {
-			return "(" + yearColumn + " = ?) AND (" + weekColumn + " BETWEEN ? AND ?)", []interface{}{fromYear, fromWeek, toWeek}
-		} else {
-			// The date range spans multiple years
-
-			// This avoids having to build query by looping through the years
-			// If year > fromYear and year < toYear
-			ret = "(" + yearColumn + " > ? AND " + yearColumn + " < ?) " +
-				// If year is fromYear, then week should be >= fromWeek
-				"OR (" + yearColumn + " = ? AND " + weekColumn + " >= ?) " +
-				// If year is toYear, then week should be <= toWeek
-				"OR (" + yearColumn + " = ? AND " + weekColumn + " <= ?)"
-
-			return ret, []interface{}{fromYear, toYear, fromYear, fromWeek, toYear, toWeek}
-		}
-
-	// Same logic as for week, but with month instead of week
-	// Duplicating the logic only to avoid non-readable code if we handle month and week together
-	case IKEATimeframeMonth:
-		yearColumn, monthColumn := t.GetTimeColumns()[0], t.GetTimeColumns()[1]
-		fromYear, fromMonth := from.Year(), int(from.Month())
-		toYear, toMonth := to.Year(), int(to.Month())
-
-		// If the date range is within the same year, the query is simple
-		if fromYear == toYear {
-			return yearColumn + " = ? AND " + monthColumn + " BETWEEN ? AND ?", []interface{}{fromYear, fromMonth, toMonth}
-		} else {
-			// The date range spans multiple years
-
-			// This avoids having to build query by looping through the years
-			// If year > fromYear and year < toYear
-			ret = "(" + yearColumn + " > ? AND " + yearColumn + " < ?) " +
-				// If year is fromYear, then week should be >= fromMonth
-				"OR (" + yearColumn + " = ? AND " + monthColumn + " >= ?) " +
-				// If year is toYear, then week should be <= toMonth
-				"OR (" + yearColumn + " = ? AND " + monthColumn + " <= ?) "
-
-			return ret, []interface{}{fromYear, toYear, fromYear, fromMonth, toYear, toMonth}
-		}
-
-	}
-
-	// case IKEATimeframeYear:
-	yearColumn := t.GetTimeColumns()[0]
-	return yearColumn + " BETWEEN ? AND ?", []interface{}{from.Year(), to.Year()}
 }

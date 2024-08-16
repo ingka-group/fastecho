@@ -11,12 +11,8 @@ type Timeframe interface {
 	// For timeframe `year` the column name for year is returned
 	GetTimeColumns() []string
 
-	// GetWhereClause returns the where clause with the values in placeholders for the given date range.
-	// This helps avoid SQL injection.
-	// Sample usage:
-	// whereClause, values := timeframe.GetWhereClause(from, to)
-	// gormDb.Where(whereClause, values...)
-	GetWhereClause(from, to date.ISODate) (string, []interface{})
+	// GetWhereClause returns the where clause as a string
+	GetWhereClause(from, to date.ISODate) string
 }
 
 // ValidTimeframes accepts the valid timeframes.

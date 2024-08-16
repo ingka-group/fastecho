@@ -6,7 +6,6 @@ A collection of Golang utils that can be used between multiple microservices
 - `agg`: A small aggregation package that helps with common use cases like aggregating by IKEA
   weeks. Read the [documentation](./agg/README.md) for details.
 - `api`: Contains common handlers for building REST APIs and boilerplate code for testing (e.g. integration with testcontainers).
-- `core`: By using the core library you can set up the service configuration by providing your own custom env variables and specifying whether a postgres database is needed. See the [inner README file](/fastecho/README.md) for more info.
 - `docs`: A utility to generate a Golang file with the functions and their documentation instructed to look up. Under the hood
   the `go doc` is used. This is particularly useful to allow `swaggo` to generate the OpenAPI docs for handlers that do not
   directly exist in the codebase of the repository that is using `ocp-go-utils`. In such cases, we have to create dummy functions
@@ -27,7 +26,7 @@ A collection of Golang utils that can be used between multiple microservices
   53 of year n-1, and Dec 29 to Dec 31 might belong to week 1 of year n+1.
 - `date.ISODate`: A custom type to unmarshal a date string to a time.Time object
 - `stringutils`: Provides a bunch of functions that deal with strings or conversions from strings
-- `timeutils`: Contains functions that deal with time.Time. These can be conversions or other utilities
+- `fastecho`: Opinionated easy to set up golang microservice in the style of Python's fastAPI
 
 ## How to make a new release?
 Raise a PR and merge the code to the `main` branch, this will trigger a workflow that is responsible to tag the new release with the necessary version.

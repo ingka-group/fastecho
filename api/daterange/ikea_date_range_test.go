@@ -10,17 +10,12 @@ import (
 )
 
 func TestIKEAGetWhereClause(t *testing.T) {
-	type whereClause struct {
-		clause string
-		args   []interface{}
-	}
-
 	type testStruct struct {
 		name      string
 		from      string
 		to        string
 		timeframe IKEATimeframe
-		want      whereClause
+		want      string
 	}
 
 	tests := []testStruct{
@@ -29,60 +24,42 @@ func TestIKEAGetWhereClause(t *testing.T) {
 			from:      "2024-12-01",
 			to:        "2024-12-10",
 			timeframe: IKEATimeframeDay,
-			want: whereClause{
-				clause: "date BETWEEN ? AND ?",
-				args:   []interface{}{"2024-12-01", "2024-12-10"},
-			},
+			want:      "date BETWEEN '2024-12-01' AND '2024-12-10'",
 		},
 		{
 			name:      "ok - weekly on same year",
 			from:      "2024-12-01",
 			to:        "2024-12-10",
 			timeframe: IKEATimeframeWeek,
-			want: whereClause{
-				clause: "(ikea_year = ?) AND (ikea_week BETWEEN ? AND ?)",
-				args:   []interface{}{2024, 49, 50},
-			},
+			want:      "ikea_year = 2024 AND ikea_week BETWEEN 49 AND 50",
 		},
 		{
 			name:      "ok - weekly on subsequent years",
 			from:      "2024-12-01",
 			to:        "2025-12-10",
 			timeframe: IKEATimeframeWeek,
-			want: whereClause{
-				clause: "(ikea_year > ? AND ikea_year < ?) OR (ikea_year = ? AND ikea_week >= ?) OR (ikea_year = ? AND ikea_week <= ?)",
-				args:   []interface{}{2024, 2025, 2024, 49, 2025, 50},
-			},
+			want:      "(ikea_year > 2024 AND ikea_year < 2025) OR (ikea_year = 2024 AND ikea_week >= 49) OR (ikea_year = 2025 AND ikea_week <= 50)",
 		},
 		{
 			name:      "ok - weekly on non subsequent from and to years",
 			from:      "2024-12-01",
 			to:        "2027-12-10",
 			timeframe: IKEATimeframeWeek,
-			want: whereClause{
-				clause: "(ikea_year > ? AND ikea_year < ?) OR (ikea_year = ? AND ikea_week >= ?) OR (ikea_year = ? AND ikea_week <= ?)",
-				args:   []interface{}{2024, 2027, 2024, 49, 2027, 49},
-			},
+			want:      "(ikea_year > 2024 AND ikea_year < 2027) OR (ikea_year = 2024 AND ikea_week >= 49) OR (ikea_year = 2027 AND ikea_week <= 49)",
 		},
 		{
 			name:      "ok - monthly aggregation on same year",
 			from:      "2024-07-01",
 			to:        "2024-12-10",
 			timeframe: IKEATimeframeMonth,
-			want: whereClause{
-				clause: "iso_year = ? AND iso_month BETWEEN ? AND ?",
-				args:   []interface{}{2024, 7, 12},
-			},
+			want:      "iso_year = 2024 AND iso_month BETWEEN 7 AND 12",
 		},
 		{
 			name:      "ok - monthly aggregation on different from and to years",
 			from:      "2024-07-01",
 			to:        "2025-12-10",
 			timeframe: IKEATimeframeMonth,
-			want: whereClause{
-				clause: "(iso_year > ? AND iso_year < ?) OR (iso_year = ? AND iso_month >= ?) OR (iso_year = ? AND iso_month <= ?) ",
-				args:   []interface{}{2024, 2025, 2024, 7, 2025, 12},
-			},
+			want:      "(iso_year > 2024 AND iso_year < 2025) OR (iso_year = 2024 AND iso_month >= 7) OR (iso_year = 2025 AND iso_month <= 12)",
 		},
 	}
 
@@ -98,19 +75,10 @@ func TestIKEAGetWhereClause(t *testing.T) {
 				t.Errorf("error parsing to date in test: %v", err)
 			}
 
-			gotClause, gotArgs := tt.timeframe.GetWhereClause(from, to)
+			stmt := tt.timeframe.GetWhereClause(from, to)
 
-			if gotClause != tt.want.clause {
-				t.Errorf("got: %s, want: %s", gotClause, tt.want.clause)
-			}
+			assert.Equal(t, tt.want, stmt)
 
-			assert.Equal(t, tt.want.args, gotArgs)
-
-			for i := range gotArgs {
-				if gotArgs[i] != tt.want.args[i] {
-					t.Errorf("got: %v, want: %v", gotArgs, tt.want.args)
-				}
-			}
 		})
 	}
 }
