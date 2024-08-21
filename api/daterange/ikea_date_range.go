@@ -31,7 +31,7 @@ func (t IKEATimeframe) GetTimeColumns() []string {
 		return []string{"iso_year", "iso_month"}
 	}
 
-	return []string{"iso_year"}
+	return []string{"financial_year"}
 }
 
 // GetWhereClause returns the where clause of the timeframe for the given date range.

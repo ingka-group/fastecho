@@ -61,6 +61,13 @@ func TestIKEAGetWhereClause(t *testing.T) {
 			timeframe: IKEATimeframeMonth,
 			want:      "(iso_year > 2024 AND iso_year < 2025) OR (iso_year = 2024 AND iso_month >= 7) OR (iso_year = 2025 AND iso_month <= 12)",
 		},
+		{
+			name:      "ok - year aggregation",
+			from:      "2024-07-01",
+			to:        "2025-12-10",
+			timeframe: IKEATimeframeYear,
+			want:      "financial_year BETWEEN 2024 AND 2025",
+		},
 	}
 
 	for _, tt := range tests {
