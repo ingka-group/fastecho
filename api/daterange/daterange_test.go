@@ -18,9 +18,9 @@ func TestValidateDateRange(t *testing.T) {
 		isoRange ISODateRange
 	}
 	tests := []struct {
-		name       string
-		args       args
-		shouldFail bool
+		name    string
+		args    args
+		wantErr bool
 	}{
 		{
 			name: "day",
@@ -29,14 +29,13 @@ func TestValidateDateRange(t *testing.T) {
 					Day: true,
 				},
 				isoRange: ISODateRange{
-					DateRangeBasic: DateRangeBasic{
+					BasicDateRange: BasicDateRange{
 						From: date.ISODate{Time: time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)},
 						To:   date.ISODate{Time: time.Date(2021, 2, 1, 0, 0, 0, 0, time.UTC)},
 					},
-					Timeframe: ISOTimeframeDay,
+					Timeframe: TimeframeDay,
 				},
 			},
-			shouldFail: false,
 		},
 		{
 			name: "week",
@@ -45,14 +44,13 @@ func TestValidateDateRange(t *testing.T) {
 					Week: true,
 				},
 				isoRange: ISODateRange{
-					DateRangeBasic: DateRangeBasic{
+					BasicDateRange: BasicDateRange{
 						From: date.ISODate{Time: time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)},
 						To:   date.ISODate{Time: time.Date(2021, 2, 1, 0, 0, 0, 0, time.UTC)},
 					},
-					Timeframe: ISOTimeframeWeek,
+					Timeframe: TimeframeWeek,
 				},
 			},
-			shouldFail: false,
 		},
 		{
 			name: "month",
@@ -61,14 +59,13 @@ func TestValidateDateRange(t *testing.T) {
 					Month: true,
 				},
 				isoRange: ISODateRange{
-					DateRangeBasic: DateRangeBasic{
+					BasicDateRange: BasicDateRange{
 						From: date.ISODate{Time: time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)},
 						To:   date.ISODate{Time: time.Date(2021, 2, 1, 0, 0, 0, 0, time.UTC)},
 					},
-					Timeframe: ISOTimeframeMonth,
+					Timeframe: TimeframeMonth,
 				},
 			},
-			shouldFail: false,
 		},
 		{
 			name: "year",
@@ -77,14 +74,13 @@ func TestValidateDateRange(t *testing.T) {
 					Year: true,
 				},
 				isoRange: ISODateRange{
-					DateRangeBasic: DateRangeBasic{
+					BasicDateRange: BasicDateRange{
 						From: date.ISODate{Time: time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)},
 						To:   date.ISODate{Time: time.Date(2021, 2, 1, 0, 0, 0, 0, time.UTC)},
 					},
-					Timeframe: ISOTimeframeYear,
+					Timeframe: TimeframeYear,
 				},
 			},
-			shouldFail: false,
 		},
 		{
 			name: "to before from",
@@ -93,14 +89,14 @@ func TestValidateDateRange(t *testing.T) {
 					Day: true,
 				},
 				isoRange: ISODateRange{
-					DateRangeBasic: DateRangeBasic{
+					BasicDateRange: BasicDateRange{
 						From: date.ISODate{Time: time.Date(2021, 2, 1, 0, 0, 0, 0, time.UTC)},
 						To:   date.ISODate{Time: time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)},
 					},
-					Timeframe: ISOTimeframeDay,
+					Timeframe: TimeframeDay,
 				},
 			},
-			shouldFail: true,
+			wantErr: true,
 		},
 		{
 			name: "from, to zero",
@@ -109,14 +105,14 @@ func TestValidateDateRange(t *testing.T) {
 					Day: true,
 				},
 				isoRange: ISODateRange{
-					DateRangeBasic: DateRangeBasic{
+					BasicDateRange: BasicDateRange{
 						From: date.ISODate{Time: time.Date(0, 0, 0, 0, 0, 0, 0, time.UTC)},
 						To:   date.ISODate{Time: time.Date(0, 0, 0, 0, 0, 0, 0, time.UTC)},
 					},
-					Timeframe: ISOTimeframeDay,
+					Timeframe: TimeframeDay,
 				},
 			},
-			shouldFail: true,
+			wantErr: true,
 		},
 	}
 
@@ -127,8 +123,8 @@ func TestValidateDateRange(t *testing.T) {
 			vdt.RegisterStructValidation(f, ISODateRange{})
 
 			err := vdt.Struct(tt.args.isoRange)
-			if err != nil && !tt.shouldFail {
-				t.Errorf("ValidateISODateRange() = %v, want %v", err, tt.shouldFail)
+			if err != nil && !tt.wantErr {
+				t.Errorf("ValidateDateRange() = %v, want %v", err, tt.wantErr)
 			}
 		})
 	}

@@ -61,3 +61,14 @@ func (d ISODate) String() string {
 func FromTime(time time.Time) ISODate {
 	return ISODate{time}
 }
+
+// FromStr returns an ISODate for a given string that is based on the ISODateFmt.
+func FromStr(str string) (*ISODate, error) {
+	dateVal, err := time.Parse(ISODateFmt, str)
+	if err != nil {
+		return nil, err
+	}
+
+	res := FromTime(dateVal)
+	return &res, nil
+}
