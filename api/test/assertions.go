@@ -121,8 +121,8 @@ func assertHandlerResult(it *IntegrationTest, t *Data, res *HandlerResult) {
 		} else {
 			t.ExpectResponse = it.Fixtures.ReadResponse(t.ExpectResponse)
 
-			require.Equal(it.T,
-				minify(t.ExpectResponse),
+			require.JSONEq(it.T,
+				t.ExpectResponse,
 				strings.TrimSpace(res.Response.Body.String()),
 			)
 		}
