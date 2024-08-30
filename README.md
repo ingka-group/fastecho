@@ -27,6 +27,7 @@ A collection of Golang utils that can be used between multiple microservices
 - `date.ISODate`: A custom type to unmarshal a date string to a time.Time object
 - `stringutils`: Provides a bunch of functions that deal with strings or conversions from strings
 - `fastecho`: Opinionated easy to set up golang microservice in the style of Python's fastAPI
+- `otel`: Go implementations of an OpenTelemetry collector for managing observability data.
 
 ## How to make a new release?
 Raise a PR and merge the code to the `main` branch, this will trigger a workflow that is responsible to tag the new release with the necessary version.
