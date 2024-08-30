@@ -70,7 +70,7 @@ var (
 type Config struct {
 	ExtraEnvs           env.Map
 	ValidationRegistrar func(v *router.Validator) error
-	Routes              []router.Route
+	Routes              func(e *echo.Echo, r *router.Router) error
 	ContextProps        any
 	Options             Options
 }

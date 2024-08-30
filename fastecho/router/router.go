@@ -21,7 +21,7 @@ type Router struct {
 // Config contains the configuration for the router.
 type Config struct {
 	Echo             *echo.Echo
-	Routes           []Route
+	Routes           func(e *echo.Echo, r *Router) error
 	SkipMetrics      bool
 	SkipHealthChecks bool
 	HealthChecksDB   *gorm.DB
@@ -31,34 +31,43 @@ type Config struct {
 
 // Route contains the details of a route.
 type Route struct {
-	Group       string
-	Path        string
-	HandlerFunc func(ctx echo.Context) error
-	RestVerb    string
+	group       *echo.Group
+	path        string
+	handlerFunc echo.HandlerFunc
+	restVerb    string
 }
 
 // NewRouter creates a new Router.
 func NewRouter(cfg Config) (*Router, error) {
 	r := &Router{
-		Routes: cfg.Routes,
+		Routes: make([]Route, 0),
 	}
 
 	if !cfg.SkipHealthChecks {
 		healthHandler := health.NewHandler(cfg.HealthChecksDB)
 
 		r.Routes = append(r.Routes, Route{
-			Path:        "/health/ready",
-			HandlerFunc: healthHandler.Ready,
-			RestVerb:    http.MethodGet,
+			path:        "/health/ready",
+			handlerFunc: healthHandler.Ready,
+			restVerb:    http.MethodGet,
 		})
 
 		r.Routes = append(r.Routes, Route{
-			Path:        "/health/live",
-			HandlerFunc: healthHandler.Live,
-			RestVerb:    http.MethodGet,
+			path:        "/health/live",
+			handlerFunc: healthHandler.Live,
+			restVerb:    http.MethodGet,
 		})
 	}
-	err := r.setup(cfg.Echo)
+
+	// Run the routes wrapper if it is defined.
+	if cfg.Routes != nil {
+		err := cfg.Routes(cfg.Echo, r)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	err := r.setup()
 	if err != nil {
 		return nil, err
 	}
@@ -72,6 +81,18 @@ func NewRouter(cfg Config) (*Router, error) {
 	r.printRoutes(cfg.Echo)
 
 	return r, nil
+}
+
+// AddRoute adds a route.
+func AddRoute(r *Router, group *echo.Group, path string, handlerFunc echo.HandlerFunc, restVerb string) *Router {
+	r.Routes = append(r.Routes, Route{
+		group:       group,
+		path:        path,
+		handlerFunc: handlerFunc,
+		restVerb:    restVerb,
+	})
+
+	return r
 }
 
 // addMetrics adds a handler for metrics.
@@ -94,20 +115,21 @@ func (r *Router) addSwagger(e *echo.Echo, title, path string) *Router {
 }
 
 // setup configures the routes for echo.
-func (r *Router) setup(e *echo.Echo) error {
+func (r *Router) setup() error {
+	// register routes to echo
 	for _, route := range r.Routes {
-		switch route.RestVerb {
+		switch route.restVerb {
 		case http.MethodGet:
-			e.Group(route.Group).GET(route.Path, route.HandlerFunc)
+			route.group.GET(route.path, route.handlerFunc)
 		case http.MethodPost:
-			e.Group(route.Group).POST(route.Path, route.HandlerFunc)
+			route.group.POST(route.path, route.handlerFunc)
 		case http.MethodPatch:
-			e.Group(route.Group).PATCH(route.Path, route.HandlerFunc)
+			route.group.PATCH(route.path, route.handlerFunc)
 		case http.MethodDelete:
-			e.Group(route.Group).DELETE(route.Path, route.HandlerFunc)
+			route.group.DELETE(route.path, route.handlerFunc)
 		default:
 			return errs.New(
-				fmt.Sprintf("not suitable router method found for: %s", route.RestVerb),
+				fmt.Sprintf("not suitable router method found for: %s", route.restVerb),
 			)
 		}
 	}
