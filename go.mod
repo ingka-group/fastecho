@@ -21,7 +21,6 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8
 	gorm.io/driver/postgres v1.5.6
-	gorm.io/driver/sqlite v1.5.6
 	gorm.io/gorm v1.25.7
 )
 
@@ -50,7 +49,6 @@ require (
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240226150601-1dcf7310316a // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
-	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/sys/user v0.1.0 // indirect

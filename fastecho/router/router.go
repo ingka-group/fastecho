@@ -48,12 +48,14 @@ func NewRouter(cfg Config) (*Router, error) {
 
 		r.Routes = append(r.Routes, Route{
 			path:        "/health/ready",
+			group:       cfg.Echo.Group(""),
 			handlerFunc: healthHandler.Ready,
 			restVerb:    http.MethodGet,
 		})
 
 		r.Routes = append(r.Routes, Route{
 			path:        "/health/live",
+			group:       cfg.Echo.Group(""),
 			handlerFunc: healthHandler.Live,
 			restVerb:    http.MethodGet,
 		})
@@ -118,6 +120,9 @@ func (r *Router) addSwagger(e *echo.Echo, title, path string) *Router {
 func (r *Router) setup() error {
 	// register routes to echo
 	for _, route := range r.Routes {
+		if route.group == nil {
+			return errs.New("group is not defined for the route: " + route.path)
+		}
 		switch route.restVerb {
 		case http.MethodGet:
 			route.group.GET(route.path, route.handlerFunc)
