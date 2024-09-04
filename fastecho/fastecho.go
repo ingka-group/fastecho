@@ -22,16 +22,18 @@ import (
 	"github.com/ingka-group-digital/ocp-go-utils/echozap"
 	"github.com/ingka-group-digital/ocp-go-utils/fastecho/context"
 	"github.com/ingka-group-digital/ocp-go-utils/fastecho/env"
+	"github.com/ingka-group-digital/ocp-go-utils/fastecho/errs"
 	"github.com/ingka-group-digital/ocp-go-utils/fastecho/router"
+	"github.com/ingka-group-digital/ocp-go-utils/stringutils"
 )
 
 const (
-	hostname        = "HOSTNAME"
-	port            = "PORT"
-	envType         = "ENV_TYPE"
+	hostname = "HOSTNAME"
+	port     = "PORT"
+	envType  = "ENV_TYPE"
+
 	swaggerUITitle  = "SWAGGER_UI_TITLE"
 	swaggerJSONPath = "SWAGGER_JSON_PATH"
-	serviceName     = "SERVICE_NAME"
 
 	localEnv = "local"
 	devEnv   = "dev"
@@ -60,9 +62,6 @@ var (
 		swaggerUITitle: {
 			DefaultValue: "FastEcho Service",
 		},
-		serviceName: {
-			DefaultValue: "fastecho",
-		},
 	}
 )
 
@@ -72,17 +71,31 @@ type Config struct {
 	ValidationRegistrar func(v *router.Validator) error
 	Routes              func(e *echo.Echo, r *router.Router) error
 	ContextProps        any
-	Options             Options
+	Opts                Opts
 }
 
-// Options define configuration options for fastecho.
-type Options struct {
-	SkipMetrics  bool
-	SkipTracing  bool
-	HealthChecks struct {
-		Skip bool
-		DB   *gorm.DB
-	}
+// Opts define configuration options for fastecho.
+type Opts struct {
+	Metrics      MetricsOpts
+	Tracing      TracingOpts
+	HealthChecks HealthChecksOpts
+}
+
+// MetricsOpts define configuration options for metrics.
+type MetricsOpts struct {
+	Skip bool
+}
+
+// TracingOpts define configuration options for tracing.
+type TracingOpts struct {
+	Skip        bool
+	ServiceName string
+}
+
+// HealthChecksOpts define configuration options for health checks.
+type HealthChecksOpts struct {
+	Skip bool
+	DB   *gorm.DB
 }
 
 // server is a wrapper around Echo.
@@ -149,9 +162,9 @@ func (s *server) setup(cfg *Config) error {
 		router.Config{
 			Echo:             s.Echo,
 			Routes:           cfg.Routes,
-			SkipMetrics:      cfg.Options.SkipMetrics,
-			SkipHealthChecks: cfg.Options.HealthChecks.Skip,
-			HealthChecksDB:   cfg.Options.HealthChecks.DB,
+			SkipMetrics:      cfg.Opts.Metrics.Skip,
+			SkipHealthChecks: cfg.Opts.HealthChecks.Skip,
+			HealthChecksDB:   cfg.Opts.HealthChecks.DB,
 			SwaggerTitle:     envs[swaggerUITitle].Value,
 			SwaggerPath:      envs[swaggerJSONPath].Value,
 		},
@@ -187,9 +200,13 @@ func (s *server) config(cfg *Config) error {
 	var tracerProvider *sdktrace.TracerProvider
 	var tracer *trace.Tracer
 
-	// recheck because env var might have been overridden by env file
-	if !cfg.Options.SkipTracing {
-		tracerProvider, tracer, err = newTracer(envs[serviceName].Value)
+	// enable/disable tracing
+	if !cfg.Opts.Tracing.Skip {
+		if stringutils.IsEmpty(cfg.Opts.Tracing.ServiceName) {
+			return errs.New("service name not provided for tracing")
+		}
+
+		tracerProvider, tracer, err = newTracer(cfg.Opts.Tracing.ServiceName)
 		if err != nil {
 			return err
 		}
@@ -237,7 +254,7 @@ func (s *server) middlewares(cfg *Config) {
 	}))
 
 	// Metrics
-	if !cfg.Options.SkipMetrics {
+	if !cfg.Opts.Metrics.Skip {
 		s.Echo.Use(echoprometheus.NewMiddleware("echo_http"))
 	}
 

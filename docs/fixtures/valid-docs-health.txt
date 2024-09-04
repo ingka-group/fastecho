@@ -11,7 +11,7 @@ package api
 // @Produce json
 // @Success 200 {object} ServiceHealth "OK"
 // @Failure 503 {object} ServiceHealth "Service Unavailable"
-// @Router /v1/health/live [get]
+// @Router /health/live [get]
 func Live() {}
 
 // Ready performs readiness check.
@@ -22,5 +22,5 @@ func Live() {}
 // @ID health-ready
 // @Success 200 "OK"
 // @Failure 503 {object} ServiceHealth "Service Unavailable"
-// @Router /v1/health/ready [get]
+// @Router /health/ready [get]
 func Ready() {}

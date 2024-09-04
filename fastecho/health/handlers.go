@@ -27,7 +27,7 @@ func NewHandler(db *gorm.DB) *Handler {
 // @ID health-ready
 // @Success 200 "OK"
 // @Failure 503 {object} ServiceHealth "Service Unavailable"
-// @Router /v1/health/ready [get]
+// @Router /health/ready [get]
 func (h *Handler) Ready(ctx echo.Context) error {
 	if checkDatabase(h.db) != nil {
 		return ctx.NoContent(http.StatusServiceUnavailable)
@@ -45,7 +45,7 @@ func (h *Handler) Ready(ctx echo.Context) error {
 // @Produce json
 // @Success 200 {object} ServiceHealth "OK"
 // @Failure 503 {object} ServiceHealth "Service Unavailable"
-// @Router /v1/health/live [get]
+// @Router /health/live [get]
 func (h *Handler) Live(ctx echo.Context) error {
 	if checkDatabase(h.db) != nil {
 		return ctx.JSON(http.StatusServiceUnavailable, ServiceHealth{
