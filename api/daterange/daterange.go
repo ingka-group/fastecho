@@ -159,19 +159,19 @@ func getWhereClauseSQL(from, to date.ISODate, t Timeframe, opts *sqlWhereClauseO
 	switch t {
 	case TimeframeDay:
 		dateColumn := cols[0]
-		return fmt.Sprintf("%s BETWEEN '%s' AND '%s'", dateColumn, from.String(), to.String())
+		return fmt.Sprintf("(%s BETWEEN '%s' AND '%s')", dateColumn, from.String(), to.String())
 	case TimeframeWeek:
 		yearColumn, weekColumn := cols[0], cols[1]
 
 		if opts.FromYear == opts.ToYear {
-			return fmt.Sprintf(`%s = %v AND %s BETWEEN %v AND %v`, yearColumn, opts.FromYear, weekColumn, opts.FromWeek, opts.ToWeek)
+			return fmt.Sprintf(`(%s = %v AND %s BETWEEN %v AND %v)`, yearColumn, opts.FromYear, weekColumn, opts.FromWeek, opts.ToWeek)
 		} else {
 			// The date range spans multiple years
 			firstYearClause := fmt.Sprintf(`(%s = %v AND %s >= %v)`, yearColumn, opts.FromYear, weekColumn, opts.FromWeek)
 			middleYearsClause := fmt.Sprintf(`(%s > %v AND %s < %v)`, yearColumn, opts.FromYear, yearColumn, opts.ToYear)
 			lastYearClause := fmt.Sprintf(`(%s = %v AND %s <= %v)`, yearColumn, opts.ToYear, weekColumn, opts.ToWeek)
 
-			return fmt.Sprintf(`%s OR %s OR %s`, middleYearsClause, firstYearClause, lastYearClause)
+			return fmt.Sprintf(`(%s OR %s OR %s)`, middleYearsClause, firstYearClause, lastYearClause)
 		}
 	case TimeframeMonth:
 		// NOTE
@@ -181,14 +181,14 @@ func getWhereClauseSQL(from, to date.ISODate, t Timeframe, opts *sqlWhereClauseO
 		toYear, toMonth := to.Year(), int(to.Month())
 
 		if fromYear == toYear {
-			return fmt.Sprintf(`%s = %v AND %s BETWEEN %v AND %v`, yearColumn, fromYear, monthColumn, fromMonth, toMonth)
+			return fmt.Sprintf(`(%s = %v AND %s BETWEEN %v AND %v)`, yearColumn, fromYear, monthColumn, fromMonth, toMonth)
 		} else {
 			// The date range spans multiple years
 			firstYearClause := fmt.Sprintf(`(%s = %v AND %s >= %v)`, yearColumn, fromYear, monthColumn, fromMonth)
 			middleYearsClause := fmt.Sprintf(`(%s > %v AND %s < %v)`, yearColumn, fromYear, yearColumn, toYear)
 			lastYearClause := fmt.Sprintf(`(%s = %v AND %s <= %v)`, yearColumn, toYear, monthColumn, toMonth)
 
-			return fmt.Sprintf(`%s OR %s OR %s`, middleYearsClause, firstYearClause, lastYearClause)
+			return fmt.Sprintf(`(%s OR %s OR %s)`, middleYearsClause, firstYearClause, lastYearClause)
 		}
 	}
 
@@ -196,5 +196,5 @@ func getWhereClauseSQL(from, to date.ISODate, t Timeframe, opts *sqlWhereClauseO
 	// NOTE
 	// 	> Are we sure this is valid for IKEADateRange?
 	// 	> Shouldn't we compute the financial year based on the date range given?
-	return fmt.Sprintf(`%s BETWEEN %v AND %v`, yearColumn, from.Year(), to.Year())
+	return fmt.Sprintf(`(%s BETWEEN %v AND %v)`, yearColumn, from.Year(), to.Year())
 }
