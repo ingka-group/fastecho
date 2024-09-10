@@ -20,16 +20,16 @@ func Test_generateDocs(t *testing.T) {
 		{
 			name: "ok: generate docs",
 			args: args{
-				functions: "health.Live",
-				pkg:       "api",
+				functions: "fastecho/health.Live",
+				pkg:       "fastecho",
 			},
 			want: "valid-docs-live.txt",
 		},
 		{
 			name: "ok: generate docs",
 			args: args{
-				functions: "health.Live,health.Ready",
-				pkg:       "api",
+				functions: "fastecho/health.Live,fastecho/health.Ready",
+				pkg:       "fastecho",
 			},
 			want: "valid-docs-health.txt",
 		},

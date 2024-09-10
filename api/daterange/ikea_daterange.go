@@ -1,6 +1,8 @@
 package daterange
 
-import "github.com/ingka-group-digital/ocp-go-utils/date"
+import (
+	"github.com/ingka-group-digital/ocp-go-utils/date"
+)
 
 // IKEADateRange represents an IKEA date range. The Timeframe is required to group the data by the specific date range.
 type IKEADateRange struct {
@@ -55,6 +57,11 @@ func (d IKEADateRange) GetWhereClauseSQL() string {
 		ToYear:   toYear,
 		FromWeek: fromWeek,
 		ToWeek:   toWeek,
+	}
+
+	if d.Timeframe == TimeframeYear {
+		opts.FromYear = date.IKEAFinancialYear(d.From.Year(), int(d.From.Month()))
+		opts.ToYear = date.IKEAFinancialYear(d.To.Year(), int(d.To.Month()))
 	}
 
 	return getWhereClauseSQL(d.From, d.To, d.Timeframe, opts, d.GetTimeColumns())

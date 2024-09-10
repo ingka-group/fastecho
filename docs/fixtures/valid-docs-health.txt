@@ -1,6 +1,6 @@
 // Code generated automatically by ocp-go-utils/docs. DO NOT EDIT.
 
-package api
+package fastecho
 
 // Live performs a live check.
 //

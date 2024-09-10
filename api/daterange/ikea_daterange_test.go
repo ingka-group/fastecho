@@ -73,7 +73,21 @@ func TestIKEADateRange_GetWhereClauseSQL(t *testing.T) {
 			from:      "2024-07-01",
 			to:        "2025-12-10",
 			timeframe: TimeframeYear,
+			want:      "(financial_year BETWEEN 2024 AND 2026)",
+		},
+		{
+			name:      "ok: year aggregation in same iso year but different financial year",
+			from:      "2024-07-01",
+			to:        "2024-10-10",
+			timeframe: TimeframeYear,
 			want:      "(financial_year BETWEEN 2024 AND 2025)",
+		},
+		{
+			name:      "ok: year aggregation in same iso year and same financial year",
+			from:      "2024-07-01",
+			to:        "2024-08-30",
+			timeframe: TimeframeYear,
+			want:      "(financial_year BETWEEN 2024 AND 2024)",
 		},
 	}
 

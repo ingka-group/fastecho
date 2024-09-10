@@ -193,8 +193,5 @@ func getWhereClauseSQL(from, to date.ISODate, t Timeframe, opts *sqlWhereClauseO
 	}
 
 	yearColumn := cols[0]
-	// NOTE
-	// 	> Are we sure this is valid for IKEADateRange?
-	// 	> Shouldn't we compute the financial year based on the date range given?
-	return fmt.Sprintf(`(%s BETWEEN %v AND %v)`, yearColumn, from.Year(), to.Year())
+	return fmt.Sprintf(`(%s BETWEEN %v AND %v)`, yearColumn, opts.FromYear, opts.ToYear)
 }
