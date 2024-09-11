@@ -1,6 +1,8 @@
 package date
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"time"
 )
 
@@ -31,6 +33,12 @@ func (d *ISODate) UnmarshalJSON(b []byte) (err error) {
 	return
 }
 
+// MarshalJSON converts a time.Time object to an ISODate
+func (d *ISODate) MarshalJSON() ([]byte, error) {
+	formatted := fmt.Sprintf("\"%s\"", d.Time.Format(ISODateFmt))
+	return []byte(formatted), nil
+}
+
 // UnmarshalParam converts an incoming date string, e.g. 2022-01-01, in a time.Time object
 //
 // The function is similar to UnmarshalJSON but this can be used in order for query parameters
@@ -43,6 +51,17 @@ func (d *ISODate) UnmarshalParam(p string) (err error) {
 
 	d.Time = t
 	return
+}
+
+// Value returns the time.Time object of the ISODate struct (gorm)
+func (d ISODate) Value() (driver.Value, error) {
+	return d.Time, nil
+}
+
+// Scan assigns a value from a database driver (gorm)
+func (d *ISODate) Scan(value interface{}) error {
+	d.Time = value.(time.Time)
+	return nil
 }
 
 // Date returns the wrapped time.Time object of the ISODate struct for interoperability with the
