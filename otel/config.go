@@ -9,6 +9,7 @@ import (
 type Option interface {
 	apply(*TracerConfig)
 }
+
 type optionFunc func(*TracerConfig)
 
 func (o optionFunc) apply(c *TracerConfig) {
@@ -19,6 +20,8 @@ type TracerConfig struct {
 	TracerProvider oteltrace.TracerProvider
 	Propagators    propagation.TextMapPropagator
 	Skipper        middleware.Skipper
+	ServiceName    string
+	Env            string
 }
 
 func WithPropagators(propagators propagation.TextMapPropagator) Option {
@@ -43,5 +46,19 @@ func WithTracerProvider(provider oteltrace.TracerProvider) Option {
 func WithSkipper(skipper middleware.Skipper) Option {
 	return optionFunc(func(cfg *TracerConfig) {
 		cfg.Skipper = skipper
+	})
+}
+
+// WithServiceName specifies the name of the service
+func WithServiceName(serviceName string) Option {
+	return optionFunc(func(cfg *TracerConfig) {
+		cfg.ServiceName = serviceName
+	})
+}
+
+// WithEnv specifies the environment for filtering the spans
+func WithEnv(env string) Option {
+	return optionFunc(func(cfg *TracerConfig) {
+		cfg.Env = env
 	})
 }

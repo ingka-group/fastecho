@@ -42,12 +42,12 @@ func Middleware(options ...Option) echo.MiddlewareFunc {
 				return next(c)
 			}
 
-			return handleRequest(c, tracer, config, next)
+			return handleRequest(c, tracer, &config, next)
 		}
 	}
 }
 
-func handleRequest(c echo.Context, tracer oteltrace.Tracer, config TracerConfig, next echo.HandlerFunc) error {
+func handleRequest(c echo.Context, tracer oteltrace.Tracer, config *TracerConfig, next echo.HandlerFunc) error {
 	c.Set(tracerKey, tracer)
 	request := c.Request()
 	savedCtx := request.Context()
@@ -60,7 +60,7 @@ func handleRequest(c echo.Context, tracer oteltrace.Tracer, config TracerConfig,
 	// https://www.w3.org/TR/trace-context/#traceparent-header-field-values
 	ctx := config.Propagators.Extract(savedCtx, propagation.HeaderCarrier(request.Header))
 
-	ctx, span := startSpan(c, tracer, ctx)
+	ctx, span := startSpan(c, tracer, ctx, config)
 	defer span.End()
 
 	c.SetRequest(request.WithContext(ctx))
@@ -87,9 +87,9 @@ func setSpanStatus(span oteltrace.Span, status int) {
 	}
 }
 
-func startSpan(c echo.Context, tracer oteltrace.Tracer, ctx context.Context) (context.Context, oteltrace.Span) {
+func startSpan(c echo.Context, tracer oteltrace.Tracer, ctx context.Context, config *TracerConfig) (context.Context, oteltrace.Span) {
 	opts := []oteltrace.SpanStartOption{
-		oteltrace.WithAttributes(GetHttpRequestAttributes(c, c.Request())...),
+		oteltrace.WithAttributes(GetHttpRequestAttributes(c, c.Request(), config)...),
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 	}
 	if path := c.Path(); path != "" {
@@ -117,7 +117,7 @@ func setDefaultConfig(config *TracerConfig) {
 	}
 }
 
-func GetHttpRequestAttributes(c echo.Context, req *http.Request) []attribute.KeyValue {
+func GetHttpRequestAttributes(c echo.Context, req *http.Request, config *TracerConfig) []attribute.KeyValue {
 
 	// http.method
 	method := req.Method
@@ -166,6 +166,8 @@ func GetHttpRequestAttributes(c echo.Context, req *http.Request) []attribute.Key
 		attribute.String("net.sock.peer.port", peerPort),
 		attribute.String("http.user_agent", userAgent),
 		attribute.String("http.client_ip", clientIP),
+		attribute.String("server.name", config.ServiceName),
+		attribute.String("environment", config.Env),
 	}
 }
 

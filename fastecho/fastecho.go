@@ -24,6 +24,7 @@ import (
 	"github.com/ingka-group-digital/ocp-go-utils/fastecho/env"
 	"github.com/ingka-group-digital/ocp-go-utils/fastecho/errs"
 	"github.com/ingka-group-digital/ocp-go-utils/fastecho/router"
+	"github.com/ingka-group-digital/ocp-go-utils/otel"
 	"github.com/ingka-group-digital/ocp-go-utils/stringutils"
 )
 
@@ -225,6 +226,16 @@ func (s *server) middlewares(cfg *Config) {
 		AllowOrigins: []string{"*"},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
 	}))
+
+	if !cfg.Opts.Tracing.Skip {
+		s.Echo.Use(otel.Middleware(
+			otel.WithSkipper(func(ctx echo.Context) bool {
+				return isSwaggerRoute(ctx) || isMetricsRoute(ctx) || isHealthRoute(ctx)
+			}),
+			otel.WithServiceName(cfg.Opts.Tracing.ServiceName),
+			otel.WithEnv(envs[envType].Value),
+		))
+	}
 
 	// Request ID
 	s.Echo.Use(middleware.RequestIDWithConfig(middleware.RequestIDConfig{
