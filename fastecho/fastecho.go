@@ -14,6 +14,7 @@ import (
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/prometheus/client_golang/prometheus"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -108,8 +109,49 @@ type server struct {
 	TracerProvider *sdktrace.TracerProvider
 }
 
+type FastEcho struct {
+	server *server
+}
+
 // Run starts a new instance of fastecho.
 func Run(cfg *Config) error {
+	s, err := newServer(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Run it!
+	return s.run(envs[hostname].Value, envs[port].Value)
+}
+
+// Initialize sets up a new instance of FastEcho and returns a prepared FastEcho type, but does not
+// boot the server.
+func Initialize(cfg *Config) (*FastEcho, error) {
+	s, err := newServer(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &FastEcho{server: s}, nil
+}
+
+// Handler returns the Echo handler for the defined FastEcho server.
+func (fe *FastEcho) Handler() http.Handler {
+	return fe.server.Echo
+}
+
+// Shutdown cleanly shuts down the server and any tracing providers.
+func (fe *FastEcho) Shutdown(ctx gocontext.Context) error {
+	if fe.server.TracerProvider != nil {
+		_ = fe.server.TracerProvider.Shutdown(ctx)
+	}
+	// Clean up global variables after shutdown
+	defer func() { prometheus.DefaultRegisterer = prometheus.NewRegistry() }()
+
+	return fe.server.Echo.Shutdown(ctx)
+}
+
+func newServer(cfg *Config) (*server, error) {
 	// Set up the server
 	s := &server{}
 
@@ -121,11 +163,10 @@ func Run(cfg *Config) error {
 
 	err := s.setup(cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Run it!
-	return s.run(envs[hostname].Value, envs[port].Value)
+	return s, nil
 }
 
 // setup sets up the service with the given environment variables and an optional postgres db layer
