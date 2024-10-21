@@ -111,3 +111,13 @@ Middlewares can be injected freely in the available router callback function.
 ## Environment variables
 
 Environment variables are read from the environment or from a `.env` file in the rood of the directory.
+
+## TODO
+
+- Which libraries are we using?
+- Example on how to setup a service with DB
+- Example on how to setup a service without DB
+- Example on ENV vars the service uses
+- Example on passing extra ENV vars
+- Example configuration options
+- Example features

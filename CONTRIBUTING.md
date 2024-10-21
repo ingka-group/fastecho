@@ -35,13 +35,3 @@ It is always best to discuss your plans beforehand, to ensure that your contribu
 - Your pull request must be approved by atleast two maintainers
 
 Thank you for your contributions!
-
-### Conventions
-State any relevant conventions/rules a contributor needs to follow in this open source project, e.g. conventions for:
-- Writing code
-- Commit messages
-- Branching
-- Creating an issue on GitHub
-- Writing documentation
-- Testing
-- etc.
