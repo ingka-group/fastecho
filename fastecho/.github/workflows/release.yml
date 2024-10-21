@@ -1,0 +1,61 @@
+name: 🔖 Release
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  VAULT_ROLE_ID: ${{ secrets.VAULT_ROLE_ID }}
+  VAULT_SECRET_ID: ${{ secrets.VAULT_SECRET_ID }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.21
+      - run: go version
+
+      - name: Configure git for private modules
+        uses: ingka-group-digital/ocp-pipelines/actions/git-private@v2.28.1
+        with:
+          vault_role_id: ${{ env.VAULT_ROLE_ID }}
+          vault_secret_id: ${{ env.VAULT_SECRET_ID }}
+
+      - name: Run SonarQube scanner
+        uses: ingka-group-digital/ocp-pipelines/actions/golang-sonarqube@v2.28.1
+        with:
+          vault_role_id: ${{ env.VAULT_ROLE_ID }}
+          vault_secret_id: ${{ env.VAULT_SECRET_ID }}
+
+      - name: Get latest tag
+        uses: WyriHaximus/github-action-get-previous-tag@v1.4.0
+        id: previous_version
+        with:
+          prefix: v
+
+      - name: Bump version and push tag
+        uses: anothrNick/github-tag-action@1.70.0
+        id: bump_version
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          WITH_V: true
+          RELEASE_BRANCHES: main
+          # custom tagging policy adapted to conventional commits
+          MAJOR_STRING_TOKEN: feat!
+          MINOR_STRING_TOKEN: feat
+          DEFAULT_BUMP: patch
+
+      - name: Create GitHub release
+        uses: ingka-group-digital/ocp-pipelines/composites/create-release@v2.28.1
+        with:
+          latest_release_tag: ${{ steps.previous_version.outputs.tag }}
+          new_release_tag: ${{ steps.bump_version.outputs.new_tag }}

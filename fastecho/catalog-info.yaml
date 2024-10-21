@@ -1,0 +1,26 @@
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+    name: ocp-go-utils
+    description: Golang library with useful utilities, e.g. IKEAWeek computation, GCS Storage Client, REST Client
+    annotations:
+        github.com/project-slug: ingka-group-digital/ocp-go-utils
+        github.com/team-slug: ingka-group-digital/ocp
+    tags:
+      - golang
+      - utils
+    links:
+        - url: https://portal.dev.ingka.com/marketplace
+          title: Marketplace
+          icon: Apps
+        - url: https://github.com/ingka-group-digital/marketplace
+          title: Marketplace repository
+          icon: CloudDone
+        - url: https://github.com/ingka-group-digital/ocp-go-utils
+          title: ocp-go-utils
+          icon: Home
+spec:
+    type: golang-utils
+    owner: ocp_data_warehouse
+    system: ocpdw
+    lifecycle: production

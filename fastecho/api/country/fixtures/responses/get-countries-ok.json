@@ -1,0 +1,124 @@
+{
+  "data": [
+    {
+      "label": "Austria",
+      "code": "AT"
+    },
+    {
+      "label": "Australia",
+      "code": "AU"
+    },
+    {
+      "label": "Belgium",
+      "code": "BE"
+    },
+    {
+      "label": "Canada",
+      "code": "CA"
+    },
+    {
+      "label": "Switzerland",
+      "code": "CH"
+    },
+    {
+      "label": "China",
+      "code": "CN"
+    },
+    {
+      "label": "Czech Republic",
+      "code": "CZ"
+    },
+    {
+      "label": "Germany",
+      "code": "DE"
+    },
+    {
+      "label": "Denmark",
+      "code": "DK"
+    },
+    {
+      "label": "Spain",
+      "code": "ES"
+    },
+    {
+      "label": "Finland",
+      "code": "FI"
+    },
+    {
+      "label": "France",
+      "code": "FR"
+    },
+    {
+      "label": "Great Britain",
+      "code": "GB"
+    },
+    {
+      "label": "Croatia",
+      "code": "HR"
+    },
+    {
+      "label": "Hungary",
+      "code": "HU"
+    },
+    {
+      "label": "Ireland",
+      "code": "IE"
+    },
+    {
+      "label": "India",
+      "code": "IN"
+    },
+    {
+      "label": "Italy",
+      "code": "IT"
+    },
+    {
+      "label": "Japan",
+      "code": "JP"
+    },
+    {
+      "label": "South Korea",
+      "code": "KR"
+    },
+    {
+      "label": "Netherlands",
+      "code": "NL"
+    },
+    {
+      "label": "Norway",
+      "code": "NO"
+    },
+    {
+      "label": "Poland",
+      "code": "PL"
+    },
+    {
+      "label": "Portugal",
+      "code": "PT"
+    },
+    {
+      "label": "Romania",
+      "code": "RO"
+    },
+    {
+      "label": "Serbia",
+      "code": "RS"
+    },
+    {
+      "label": "Sweden",
+      "code": "SE"
+    },
+    {
+      "label": "Slovenia",
+      "code": "SI"
+    },
+    {
+      "label": "Slovakia",
+      "code": "SK"
+    },
+    {
+      "label": "United States",
+      "code": "US"
+    }
+  ]
+}
