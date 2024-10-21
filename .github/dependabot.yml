@@ -6,8 +6,6 @@ updates:
   # Go Modules
   - package-ecosystem: "gomod"
     directory: "/"
-    registries:
-      - github
     schedule:
       interval: "weekly"
     groups:
@@ -19,8 +17,6 @@ updates:
   # Github Actions
   - package-ecosystem: "github-actions"
     directory: ".github/workflows"
-    registries:
-      - github
     schedule:
       interval: "weekly"
     groups:
