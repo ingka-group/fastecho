@@ -127,3 +127,4 @@ Environment variables are read from the environment or from a `.env` file in the
 - Make sure at least one internal service uses the open-source version and it works
 - Test cases & Code coverage badge
 - Gitstream to automate dependabot and releases
+- Branch protection

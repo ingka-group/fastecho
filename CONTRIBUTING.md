@@ -35,3 +35,9 @@ It is always best to discuss your plans beforehand, to ensure that your contribu
 - Your pull request must be approved by atleast two maintainers
 
 Thank you for your contributions!
+
+#### Conventions
+
+- PR titles must follow conventional style, e.g. "feat: Added option to disable OTEL tracing" (Automated semantic versioning)
+- Functions and variables must be preceded by a comment that describes them, starting with the function/var name (IntelliSense/GoDoc)
+- Pre-commit checks should pass before any contribution is accepted
