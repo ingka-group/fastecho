@@ -121,3 +121,9 @@ Environment variables are read from the environment or from a `.env` file in the
 - Example on passing extra ENV vars
 - Example configuration options
 - Example features
+- Configure repo for release
+- Configure release pipelines
+- JFrog automation scanning workflow
+- Make sure at least one internal service uses the open-source version and it works
+- Test cases & Code coverage badge
+- Gitstream to automate dependabot and releases
