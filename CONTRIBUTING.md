@@ -1,5 +1,5 @@
 # Contributing
-Thank you for your interest in this project. Your contributions are highly welcome. 
+Thank you for your interest in this project. Your contributions are highly welcome.
 
 Please read about this [project](./README.md) and its [LICENCE](./LICENCE.md) terms before making a contribution.
 
