@@ -9,7 +9,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
 
-	"github.com/ingka-group/fastecho/internal/stringutils"
+	"github.com/ingka-group/fastecho/stringutils"
 )
 
 // Map is a map of environment variables.

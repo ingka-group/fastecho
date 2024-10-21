@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/ingka-group-digital/ocp-go-utils/fastecho/env"
+	"github.com/ingka-group/fastecho/env"
 )
 
 const (
