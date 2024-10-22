@@ -9,8 +9,8 @@ import (
 	swguicdn "github.com/swaggest/swgui/v5cdn"
 	"gorm.io/gorm"
 
-	"github.com/ingka-group/fastecho/internal/errs"
-	"github.com/ingka-group/fastecho/internal/health"
+	"github.com/ingka-group/fastecho/errs"
+	"github.com/ingka-group/fastecho/health"
 )
 
 // Router contains all the available routes of the service.

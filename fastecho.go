@@ -20,13 +20,13 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
-	"github.com/ingka-group/fastecho/internal/context"
-	"github.com/ingka-group/fastecho/internal/echozap"
-	"github.com/ingka-group/fastecho/internal/env"
-	"github.com/ingka-group/fastecho/internal/errs"
-	"github.com/ingka-group/fastecho/internal/otel"
-	"github.com/ingka-group/fastecho/internal/router"
-	"github.com/ingka-group/fastecho/internal/stringutils"
+	"github.com/ingka-group/fastecho/context"
+	"github.com/ingka-group/fastecho/echozap"
+	"github.com/ingka-group/fastecho/env"
+	"github.com/ingka-group/fastecho/errs"
+	"github.com/ingka-group/fastecho/otel"
+	"github.com/ingka-group/fastecho/router"
+	"github.com/ingka-group/fastecho/stringutils"
 )
 
 const (

@@ -1,0 +1,32 @@
+m# https://EditorConfig.org
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Go
+[{*.go,*.go2}]
+indent_style = tab
+indent_size = 4
+
+# Shell script
+[{*.bash,*.sh,*.zsh}]
+indent_style = space
+indent_size = 2
+
+# Json
+[{*.har,*.jsb2,*.jsb3,*.json,.babelrc,.eslintrc,.stylelintrc,bowerrc,jest.config}]
+indent_style = space
+indent_size = 2
+
+# Yaml
+[{*.yaml,*.yml}]
+indent_style = space
+indent_size = 2
+
+# Makefile
+[Makefile]
+indent_style = tab
+indent_size = 4
