@@ -1,0 +1,84 @@
+name: 🔖Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '**.go'
+
+permissions:
+  pull-requests: read
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag
+        uses: WyriHaximus/github-action-get-previous-tag@v1.4.0
+        id: previous_version
+        with:
+          prefix: v
+
+      - name: Bump version and push tag
+        uses: anothrNick/github-tag-action@1.69.0
+        id: bump_version
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          WITH_V: true
+          RELEASE_BRANCHES: main
+          # custom tagging policy adapted to conventional commits
+          MAJOR_STRING_TOKEN: feat!
+          MINOR_STRING_TOKEN: feat
+          DEFAULT_BUMP: patch
+
+      - name: JFrog scanning
+        uses: ingka-group/fastecho/.github/composites/jfrog@main
+        with:
+          jf_url: ${{ secrets.JF_URL }}
+          jf_oidc_provider: ${{ secrets.JF_OIDC_PROVIDER }}
+          jf_oidc_audience: ${{ secrets.JF_OIDC_AUDIENCE }}
+          jf_repo: ${{ secrets.JF_GO_RELEASE_REPO }}
+          version: ${{ steps.bump_version.outputs.new_tag }}
+
+      - name: Build changelog
+        id: build_changelog
+        uses: mikepenz/release-changelog-builder-action@v5
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          fromTag: ${{ steps.previous_version.outputs.tag }}
+          toTag: ${{ steps.bump_version.outputs.new_tag }}
+          configurationJson: |
+            {
+              "sort": "DESC",
+              "template": "## What’s Changed\n\n#{{UNCATEGORIZED}}",
+              "pr_template": "* #{{TITLE}} (##{{NUMBER}})",
+              "empty_template": "no changes"
+            }
+
+      - name: Verify changelog
+        shell: bash
+        run: |
+          if [[ '${{ steps.build_changelog.outputs.failed }}' == 'true' ]]; then
+            echo 'Error during building the changelog'
+            exit 1
+          fi
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: false
+          draft: false
+          name: "Release ${{ steps.bump_version.outputs.new_tag }}"
+          tag_name: ${{ steps.bump_version.outputs.new_tag }}
+          body: ${{ steps.build_changelog.outputs.changelog }}
+          token: ${{ github.token }}
