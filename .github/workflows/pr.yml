@@ -54,11 +54,11 @@ jobs:
           DEFAULT_BUMP: patch
           DRY_RUN: true # Do not push the tag during PR
 
-      - name: JFrog scanning
-        uses: ingka-group/fastecho/.github/composites/jfrog@main
-        with:
-          jf_url: ${{ secrets.JF_URL }}
-          jf_oidc_provider: ${{ secrets.JF_OIDC_PROVIDER }}
-          jf_oidc_audience: ${{ secrets.JF_OIDC_AUDIENCE }}
-          jf_repo: ${{ secrets.JF_GO_DEV_REPO }}
-          version: ${{ steps.bump_version.outputs.new_tag }}
+      # - name: JFrog scanning
+      #   uses: ingka-group/fastecho/.github/composites/jfrog@main
+      #   with:
+      #     jf_url: ${{ secrets.JF_URL }}
+      #     jf_oidc_provider: ${{ secrets.JF_OIDC_PROVIDER }}
+      #     jf_oidc_audience: ${{ secrets.JF_OIDC_AUDIENCE }}
+      #     jf_repo: ${{ secrets.JF_GO_DEV_REPO }}
+      #     version: ${{ steps.bump_version.outputs.new_tag }}
