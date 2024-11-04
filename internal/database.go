@@ -28,7 +28,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/ingka-group/fastecho/env"
+	"github.com/ingka-group/fastecho/internal/env"
 )
 
 const (

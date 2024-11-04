@@ -33,7 +33,7 @@ import (
 const (
 	tracerKey = "fastecho-tracer"
 	// ScopeName is the instrumentation scope name.
-	ScopeName = "github.com/ingka-group/fastecho/"
+	ScopeName = "github.com/ingka-group/fastecho/internal/"
 )
 
 // Middleware returns echo middleware which will trace incoming requests.
