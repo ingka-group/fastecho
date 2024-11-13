@@ -11,12 +11,12 @@ Please read about this [project](./README.md) and its [LICENCE](./LICENCE.md) te
 ## Report a bug or an issue
 Reporting bugs is one of the best ways to contribute. Before creating a bug report, please check that an issue reporting the same problem does not already exist. If there is such an issue, you may add your information as a comment.
 
-To report a new bug please open an issue that summarizes the bug and set the label to "bug".
+To report a new bug please open an issue that summarizes the bug.
 
 If you want to provide a fix along with your bug report, please send us a pull request as described in section [Contribute code](#contribute-code).
 
 ## Suggest a new feature or improvement
-To suggest a new feature please open an issue. Summarize the desired functionality, its use case and set the issue label to "feature".
+To suggest a new feature please open an issue. Summarize the desired functionality and its use case.
 
 ## Contribute code
 Check the list of open issues. Either assign an existing issue to yourself or create a new one that you would like work on.
