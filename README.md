@@ -1,6 +1,6 @@
 <img src="fastecho.png" alt="drawing" style="width:100%;"/>
 
-Fastecho is a Go library that provides an easily configurable, ready-to-use echo server. It is a wrapper on top of the echo framework and it adds extra functionalities that are often required when setting up web servers. 
+Fastecho is a Go library that provides an easily configurable, ready-to-use echo server. It is a wrapper on top of the echo framework and it adds extra functionalities that are often required when setting up web servers.
 
 # How to run
 For specifics, check the detailed features below.
