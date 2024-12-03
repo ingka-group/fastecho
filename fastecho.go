@@ -108,7 +108,6 @@ func Run(cfg *Config) error {
 	s.Router.PrintRoutes(s.Echo)
 
 	// Run it!
-	fmt.Println("Starting FastEcho server")
 	return s.run(envs[hostname].Value, envs[port].Value)
 }
 
