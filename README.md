@@ -5,14 +5,13 @@ Fastecho is a Go library that provides an easily configurable, ready-to-use echo
 # How to run
 For specifics, check the detailed features below.
 ```go
-
     // load env vars
     err := core.Envs.SetEnv()
 	if err != nil {
 		log.Fatalf("failed to set environment variables: %s", err)
 	}
 
-    // set up a DB
+    // set up a DB and pass it to handler as you like
 	db, err := fastecho.NewDB()
 	if err != nil {
 		log.Fatalf("failed to connect to the database: %s", err)
@@ -65,7 +64,7 @@ The router is providing a couple of preset endpoints for swagger, monitoring and
 Example:
 ```go
 func configureRoutes(e *echo.Echo, r *router.Router, db *gorm.DB) error {
-	myHandler := NewHandler()
+	myHandler := NewHandler(db)
 
 	v1 := e.Group("/v1")
 	myGroup := v1.Group("/example")
@@ -141,15 +140,8 @@ Tracing is enabled only if the `OTEL_TRACING` env var is set to true.
 ### Database (optional)
 Fastecho has an optional postgres DB connection baked into it using `gorm`. We are using `goose` for migrations rather than gorm Automigrate. The migrations are expected to be under `db/migrations` in the root of your folder.
 
-## TODO
+# Miscellaneous
+Fastecho is fully compatible with [Echoprobe](https://github.com/ingka-group/echoprobe)
 
-- Example on how to setup a service with DB
-- Example on how to setup a service without DB
-- Example configuration options
-- Configure repo for release
-- Configure release pipelines
-- JFrog automation scanning workflow
-- Make sure at least one internal service uses the open-source version and it works
+## TODO
 - Test cases & Code coverage badge
-- Gitstream to automate dependabot and releases
-- Branch protection
