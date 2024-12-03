@@ -143,5 +143,14 @@ Fastecho has an optional postgres DB connection baked into it using `gorm`. We a
 # Miscellaneous
 Fastecho is fully compatible with [Echoprobe](https://github.com/ingka-group/echoprobe)
 
-## TODO
-- Test cases & Code coverage badge
+
+## Contributing
+Please read [CONTRIBUTING](./CONTRIBUTING.md) for more details about making a contribution to this open source project and ensure that you follow our [CODE_OF_CONDUCT](./CODE_OF_CONDUCT.md).
+
+
+## Contact
+If you have any other issues or questions regarding this project, feel free to contact one of the [code owners/maintainers](.github/CODEOWNERS) for a more in-depth discussion.
+
+
+## Licence
+This open source project is licensed under the "Apache-2.0", read the [LICENCE](./LICENCE.md) terms for more details.
