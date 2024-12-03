@@ -123,8 +123,8 @@ func (r *Router) addSwagger(e *echo.Echo, title, path string) *Router {
 	return r
 }
 
-// Register configures the routes for echo.
-func (r *Router) Register() error {
+// Setup configures the routes for echo.
+func (r *Router) Setup() error {
 	// register routes to echo
 	for _, route := range r.Routes {
 		if route.group == nil {

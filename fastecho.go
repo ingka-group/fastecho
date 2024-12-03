@@ -100,7 +100,7 @@ func Run(cfg *Config) error {
 		return err
 	}
 
-	err = s.Router.Register()
+	err = s.Router.Setup()
 	if err != nil {
 		return err
 	}
