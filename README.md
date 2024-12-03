@@ -112,6 +112,16 @@ Middlewares can be injected freely in the available router callback function.
 
 Environment variables are read from the environment or from a `.env` file in the rood of the directory.
 
+## Plugin
+
+Plugins are a set of handlers and their binded components(validators, middlewares, etc) which can be reused across multiple services using fastecho.
+
+### Usage
+
+```go
+fastechoConfig.Use(<pluginConfig>)
+```
+
 ## TODO
 
 - Which libraries are we using?

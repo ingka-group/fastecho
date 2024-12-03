@@ -32,7 +32,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 
 	"github.com/ingka-group/fastecho/context"
 	"github.com/ingka-group/fastecho/echozap"
@@ -81,39 +80,6 @@ var (
 	}
 )
 
-// Config serves as input configuration for fastecho.
-type Config struct {
-	ExtraEnvs           env.Map
-	ValidationRegistrar func(v *router.Validator) error
-	Routes              func(e *echo.Echo, r *router.Router) error
-	ContextProps        any
-	Opts                Opts
-}
-
-// Opts define configuration options for fastecho.
-type Opts struct {
-	Metrics      MetricsOpts
-	Tracing      TracingOpts
-	HealthChecks HealthChecksOpts
-}
-
-// MetricsOpts define configuration options for metrics.
-type MetricsOpts struct {
-	Skip bool
-}
-
-// TracingOpts define configuration options for tracing.
-type TracingOpts struct {
-	Skip        bool
-	ServiceName string
-}
-
-// HealthChecksOpts define configuration options for health checks.
-type HealthChecksOpts struct {
-	Skip bool
-	DB   *gorm.DB
-}
-
 // server is a wrapper around Echo.
 type server struct {
 	Echo           *echo.Echo
@@ -133,6 +99,13 @@ func Run(cfg *Config) error {
 	if err != nil {
 		return err
 	}
+
+	err = s.Router.Setup()
+	if err != nil {
+		return err
+	}
+
+	s.Router.PrintRoutes(s.Echo)
 
 	// Run it!
 	return s.run(envs[hostname].Value, envs[port].Value)
