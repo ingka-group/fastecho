@@ -83,18 +83,11 @@ func NewRouter(cfg Config) (*Router, error) {
 		}
 	}
 
-	err := r.setup()
-	if err != nil {
-		return nil, err
-	}
-
 	if !cfg.SkipMetrics {
 		r.addMetrics(cfg.Echo)
 	}
 
 	r.addSwagger(cfg.Echo, cfg.SwaggerTitle, cfg.SwaggerPath)
-
-	r.printRoutes(cfg.Echo)
 
 	return r, nil
 }
@@ -130,8 +123,8 @@ func (r *Router) addSwagger(e *echo.Echo, title, path string) *Router {
 	return r
 }
 
-// setup configures the routes for echo.
-func (r *Router) setup() error {
+// Register configures the routes for echo.
+func (r *Router) Register() error {
 	// register routes to echo
 	for _, route := range r.Routes {
 		if route.group == nil {
@@ -156,8 +149,8 @@ func (r *Router) setup() error {
 	return nil
 }
 
-// printRoutes prints all the available routes registered in the Echo framework.
-func (r *Router) printRoutes(e *echo.Echo) {
+// PrintRoutes prints all the available routes registered in the Echo framework.
+func (r *Router) PrintRoutes(e *echo.Echo) {
 	fmt.Println("\nRegistered routes:")
 	for _, route := range e.Routes() {
 		fmt.Println(route.Method, " ", route.Path)
