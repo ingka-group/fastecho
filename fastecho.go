@@ -249,12 +249,6 @@ func (s *server) config(cfg *Config) error {
 
 // middlewares configures all the middlewares for Echo.
 func (s *server) middlewares(cfg *Config) {
-	// CORS support
-	s.Echo.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"*"},
-		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
-	}))
-
 	if !cfg.Opts.Tracing.Skip {
 		s.Echo.Use(otel.Middleware(
 			otel.WithSkipper(func(ctx echo.Context) bool {
