@@ -140,6 +140,16 @@ Tracing is enabled only if the `OTEL_TRACING` env var is set to true.
 ### Database (optional)
 Fastecho has an optional postgres DB connection baked into it using `gorm`. We are using `goose` for migrations rather than gorm Automigrate. The migrations are expected to be under `db/migrations` in the root of your folder.
 
+## Plugins
+
+Plugins are a set of handlers and their binded components(validators, middlewares, etc) which can be reused across multiple services using fastecho.
+
+### Usage
+
+```go
+fastechoConfig.Use(<pluginConfig>)
+```
+
 # Miscellaneous
 Fastecho is fully compatible with [Echoprobe](https://github.com/ingka-group/echoprobe)
 
@@ -150,7 +160,6 @@ Please read [CONTRIBUTING](./CONTRIBUTING.md) for more details about making a co
 
 ## Contact
 If you have any other issues or questions regarding this project, feel free to contact one of the [code owners/maintainers](.github/CODEOWNERS) for a more in-depth discussion.
-
 
 ## Licence
 This open source project is licensed under the "Apache-2.0", read the [LICENCE](./LICENCE.md) terms for more details.
