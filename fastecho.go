@@ -16,6 +16,7 @@ package fastecho
 
 import (
 	gocontext "context"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -163,21 +164,6 @@ func (s *server) setup(cfg *Config) error {
 	// set up echo
 	s.Echo = echo.New()
 
-	// set up validation
-	vdt, err := router.NewValidator()
-	if err != nil {
-		return err
-	}
-
-	if cfg.ValidationRegistrar != nil {
-		// register custom validations
-		err = cfg.ValidationRegistrar(vdt)
-		if err != nil {
-			return err
-		}
-	}
-	s.Echo.Validator = vdt
-
 	// config the service
 	err = s.config(cfg)
 	if err != nil {
@@ -187,7 +173,7 @@ func (s *server) setup(cfg *Config) error {
 	// set up middlewares
 	s.middlewares(cfg)
 
-	router, err := router.NewRouter(
+	fastechoRouter, err := router.NewRouter(
 		router.Config{
 			Echo:             s.Echo,
 			Routes:           cfg.Routes,
@@ -201,7 +187,34 @@ func (s *server) setup(cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	s.Router = router
+
+	// set up validation
+	vdt, err := router.NewValidator()
+	if err != nil {
+		return err
+	}
+	if cfg.ValidationRegistrar != nil {
+		// register custom validations
+		err = cfg.ValidationRegistrar(vdt)
+		if err != nil {
+			return err
+		}
+	}
+	// register plugin validations and routes
+	for _, plugin := range cfg.Plugins {
+		err = plugin.ValidationRegistrar(vdt)
+		if err != nil {
+			return errors.New("error registering plugin validation: " + err.Error())
+		}
+		// Register plugin routes
+		fmt.Println("Registering plugin routes")
+		err = plugin.Routes(s.Echo, fastechoRouter)
+		if err != nil {
+			return errors.New("error registering plugin routes: " + err.Error())
+		}
+	}
+	s.Echo.Validator = vdt
+	s.Router = fastechoRouter
 
 	return err
 }
