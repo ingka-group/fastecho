@@ -25,7 +25,10 @@ type ServiceContext[T any] struct {
 	echo.Context
 	ZapLogger *zap.Logger
 	Tracer    *trace.Tracer
-	Props     T
+	// Props would be shared across all requests in the service
+	Props T
+	// RequestProps values are unique to each requests
+	RequestProps map[string]interface{}
 }
 
 // BindValidate binds the data to the given interface and validates the input given using validator/10.
@@ -57,8 +60,9 @@ func ServiceContextMiddleware[T any](logger *zap.Logger, tracer *trace.Tracer, p
 			spanId := spanCtx.SpanID().String()
 
 			sctx := &ServiceContext[T]{
-				Props:   props,
-				Context: ctx,
+				Props:        props,
+				RequestProps: map[string]interface{}{},
+				Context:      ctx,
 				ZapLogger: logger.With(
 					zap.String("trace_id", traceId),
 					zap.String("span_id", spanId),
