@@ -27,9 +27,10 @@ type Config struct {
 	ExtraEnvs           env.Map
 	ValidationRegistrar func(v *router.Validator) error
 	Routes              func(e *echo.Echo, r *router.Router) error
-	ContextProps        any
-	Opts                Opts
-	Plugins             []Plugin
+	// ContextProps would be shared across all requests in the service
+	ContextProps any
+	Opts         Opts
+	Plugins      []Plugin
 }
 
 // Opts define configuration options for fastecho.

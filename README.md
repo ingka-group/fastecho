@@ -23,6 +23,7 @@ For specifics, check the detailed features below.
 		Routes: func(e *echo.Echo, r *router.Router) error {
 			return configureRoutes(e, r, db)
 		},
+		// Properties which would be shared across all the requests in the service via ServiceContext
 		ContextProps: map[string]interface{}{
 			"my_property": "",
 		},
