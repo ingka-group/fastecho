@@ -23,6 +23,7 @@ For specifics, check the detailed features below.
 		Routes: func(e *echo.Echo, r *router.Router) error {
 			return configureRoutes(e, r, db)
 		},
+		// Properties which would be shared across all the requests in the service via ServiceContext
 		ContextProps: map[string]interface{}{
 			"my_property": "",
 		},
@@ -48,16 +49,25 @@ For specifics, check the detailed features below.
 
 ### Logger
 We integrated `go.uber.org/zap`
+
 ### Dynamic request context
-You can inject custom properties into the service context via props. This object is of type `any` so you can pass anything into your context to make it accessible in your endpoints
+You can inject custom properties into the service context via props. This object is of type `any` so you can pass anything into your context to make it accessible in your endpoints.
+
+You could also access request level properties by making use of `RequestProps` in ServiceContext.
+
 ```go
 func (h *Handler) GetData(ctx echo.Context) error {
     sctx := context.GetServiceContext[any](ctx)
     log := sctx.ZapLogger
+	// props contain service level properties which are shared across all requests
+	props := sctx.Props.(map[string]interface{})
 
+	// requestProps contain request level properties which can be set and accessed from within the handler or middleware
+	sctx.RequestProps["country"] = "NL"
     ...
 }
 ```
+
 ### Endpoint router
 The router is providing a couple of preset endpoints for swagger, monitoring and health checks but custom endpoints can also be injected. The router wrapper in the example above can be used to register additional endpoints.
 
