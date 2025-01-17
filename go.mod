@@ -1,6 +1,7 @@
 module github.com/ingka-group/fastecho
 
-go 1.22.1
+go 1.23
+
 toolchain go1.23.5
 
 require (
