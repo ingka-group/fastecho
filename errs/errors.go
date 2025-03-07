@@ -32,10 +32,11 @@ type ErrorType uint8
 // Do not reorder this list or remove any items since that will
 // change their values. New items must be added only to the end
 const (
-	Other        ErrorType = iota // Unclassified error
-	NotFound                      // Item does not exist
-	BadRequest                    // A remote REST call returned HTTP 400
-	Unauthorized                  // Request is unauthorized to perform this call
+	Other               ErrorType = iota // Unclassified error
+	NotFound                             // Item does not exist
+	BadRequest                           // A remote REST call returned HTTP 400
+	Unauthorized                         // Request is unauthorized to perform this call
+	RemoteRequestFailed                  // Defines that a remote service returned an unsuccessful status code
 )
 
 // Error represents an error that has a type.
