@@ -73,22 +73,8 @@ var (
 	}
 )
 
-// dbConfig contains the database configuration.
-type dbConfig struct {
-	Hostname        string
-	Port            int
-	Name            string
-	Username        string
-	Password        string
-	SSLMode         string
-	TimeZone        *time.Location
-	MaxIdleConn     int
-	MaxOpenedConn   int
-	ConnMaxLifetime time.Duration
-}
-
 // NewDB creates a new *gorm.DB the configuration of which is through environment variables.
-func NewDB() (*gorm.DB, error) {
+func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 	var db *gorm.DB
 
 	// options are not used here
@@ -102,7 +88,7 @@ func NewDB() (*gorm.DB, error) {
 		lifetime = time.Hour
 	}
 
-	cfg := &dbConfig{
+	dbConf := &dbConfig{
 		Hostname:        dbEnvs[dbHostname].Value,
 		Port:            dbEnvs[dbPort].IntValue,
 		Name:            dbEnvs[dbName].Value,
@@ -115,7 +101,7 @@ func NewDB() (*gorm.DB, error) {
 		ConnMaxLifetime: lifetime,
 	}
 
-	db, err = cfg.setup()
+	db, err = dbConf.setup(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -133,18 +119,36 @@ func NewDB() (*gorm.DB, error) {
 	return db, nil
 }
 
+// dbConfig contains the database configuration.
+type dbConfig struct {
+	Hostname        string
+	Port            int
+	Name            string
+	Username        string
+	Password        string
+	SSLMode         string
+	TimeZone        *time.Location
+	MaxIdleConn     int
+	MaxOpenedConn   int
+	ConnMaxLifetime time.Duration
+}
+
 // setup creates a new database based on the configuration given.
-func (c *dbConfig) setup() (*gorm.DB, error) {
+func (c *dbConfig) setup(cfg *gorm.Config) (*gorm.DB, error) {
 	dsn, err := c.buildDSN()
 	if err != nil {
 		return nil, err
 	}
 
+	if cfg == nil {
+		cfg = &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Info),
+		}
+	}
+
 	db, err := gorm.Open(
 		postgres.Open(dsn),
-		&gorm.Config{
-			Logger: logger.Default.LogMode(logger.Info),
-		},
+		cfg,
 	)
 	if err != nil {
 		return nil, err
