@@ -10,7 +10,10 @@ For specifics, check the detailed features below.
 	}
 
     // set up a DB and pass it to handler as you like
-	db, err := fastecho.NewDB()
+	// optionally you can provide a gorm config to customize your gorm instance
+	db, err := fastecho.NewDB(&gorm.Config{
+			Logger: newLogger,
+		})
 	if err != nil {
 		log.Fatalf("failed to connect to the database: %s", err)
 	}
