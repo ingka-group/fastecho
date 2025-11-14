@@ -46,6 +46,25 @@ For specifics, check the detailed features below.
 	}
 ```
 
+## Get access to the underlying Echo instance
+
+```go
+config := fastecho.Config{}
+
+fe, err := fastecho.Initialize(&config)
+if err != nil {
+    log.Fatalf("failed to initialize fastecho: %s", err)
+}
+
+// you can now use the echo instance to register custom middleware, routes, etc.
+echo := fe.Server.Echo
+
+// start the server
+if err := fe.Start(); err != nil {
+    log.Fatalf("failed to start fastecho: %s", err)
+}
+```
+
 # Features:
 
 ### Logger

@@ -91,7 +91,7 @@ type server struct {
 }
 
 type FastEcho struct {
-	server *server
+	Server *server
 }
 
 // Run starts a new instance of fastecho.
@@ -101,14 +101,6 @@ func Run(cfg *Config) error {
 		return err
 	}
 
-	err = s.Router.Setup()
-	if err != nil {
-		return err
-	}
-
-	s.Router.PrintRoutes(s.Echo)
-
-	// Run it!
 	return s.run(envs[hostname].Value, envs[port].Value)
 }
 
@@ -120,23 +112,28 @@ func Initialize(cfg *Config) (*FastEcho, error) {
 		return nil, err
 	}
 
-	return &FastEcho{server: s}, nil
+	return &FastEcho{Server: s}, nil
+}
+
+// Start starts an instance of fastecho. Particularly useful in combination with Initialize.
+func (fe *FastEcho) Start() error {
+	return fe.Server.run(envs[hostname].Value, envs[port].Value)
 }
 
 // Handler returns the Echo handler for the defined FastEcho server.
 func (fe *FastEcho) Handler() http.Handler {
-	return fe.server.Echo
+	return fe.Server.Echo
 }
 
 // Shutdown cleanly shuts down the server and any tracing providers.
 func (fe *FastEcho) Shutdown(ctx gocontext.Context) error {
-	if fe.server.TracerProvider != nil {
-		_ = fe.server.TracerProvider.Shutdown(ctx)
+	if fe.Server.TracerProvider != nil {
+		_ = fe.Server.TracerProvider.Shutdown(ctx)
 	}
 	// Clean up global variables after shutdown
 	defer func() { prometheus.DefaultRegisterer = prometheus.NewRegistry() }()
 
-	return fe.server.Echo.Shutdown(ctx)
+	return fe.Server.Echo.Shutdown(ctx)
 }
 
 func newServer(cfg *Config) (*server, error) {
@@ -216,6 +213,11 @@ func (s *server) setup(cfg *Config) error {
 	s.Echo.Validator = vdt
 	s.Router = fastechoRouter
 
+	if err = s.Router.Setup(); err != nil {
+		return err
+	}
+
+	s.Router.PrintRoutes(s.Echo)
 	return err
 }
 
