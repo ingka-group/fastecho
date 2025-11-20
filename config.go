@@ -31,6 +31,7 @@ type Config struct {
 	ContextProps any
 	Opts         Opts
 	Plugins      []Plugin
+	EchoFn       func(e *echo.Echo) error
 }
 
 // Opts define configuration options for fastecho.

@@ -38,6 +38,18 @@ For specifics, check the detailed features below.
 				DB:   db,
 			},
 		},
+		EchoFn: func(e *echo.Echo) error {
+			// Use a service level middleware
+			e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+				AllowOrigins:     []string{"https://example.com"},
+				AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+				MaxAge:           3600,
+				AllowCredentials: true,
+				ExposeHeaders:    []string{echo.HeaderContentLength},
+			}))
+			// Enable debug mode
+			e.Debug = true
+		},
 	}
 
 	// Starting service...

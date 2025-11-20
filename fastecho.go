@@ -101,6 +101,14 @@ func Run(cfg *Config) error {
 		return err
 	}
 
+	// Allow custom Echo configuration
+	if cfg.EchoFn != nil {
+		err = cfg.EchoFn(s.Echo)
+		if err != nil {
+			return err
+		}
+	}
+
 	err = s.Router.Setup()
 	if err != nil {
 		return err
