@@ -49,6 +49,7 @@ For specifics, check the detailed features below.
 			}))
 			// Enable debug mode
 			e.Debug = true
+			return nil
 		},
 	}
 
