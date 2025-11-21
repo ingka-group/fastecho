@@ -38,19 +38,6 @@ For specifics, check the detailed features below.
 				DB:   db,
 			},
 		},
-		EchoFn: func(e *echo.Echo) error {
-			// Use a service level middleware
-			e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-				AllowOrigins:     []string{"https://example.com"},
-				AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
-				MaxAge:           3600,
-				AllowCredentials: true,
-				ExposeHeaders:    []string{echo.HeaderContentLength},
-			}))
-			// Enable debug mode
-			e.Debug = true
-			return nil
-		},
 	}
 
 	// Starting service...
@@ -167,6 +154,37 @@ Fastecho has an optional postgres DB connection baked into it using `gorm`. We a
 ## Plugins
 
 Plugins are a set of handlers and their binded components(validators, middlewares, etc) which can be reused across multiple services using fastecho.
+
+## Access Echo instance
+
+The underlying Echo instance can be accessed by passing the value for `EchoFn` in the config. This would be useful for binding service level middleware, enable echo's debug mode or any other Echo features.
+
+Example config:
+
+```go
+config := fastecho.Config{
+	ValidationRegistrar: ValidationRegistrar: func(*router.Validator) error {
+		return nil
+	},
+	Routes: func(e *echo.Echo, r *router.Router) error {
+		return configureRoutes(e, r, db)
+	},
+	EchoFn: func(e *echo.Echo) error {
+		// Use a service level middleware
+		e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+			AllowOrigins:     []string{"https://example.com"},
+			AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+			MaxAge:           3600,
+			AllowCredentials: true,
+			ExposeHeaders:    []string{echo.HeaderContentLength},
+		}))
+		// Enable debug mode in echo
+		e.Debug = true
+		return nil
+	},
+	...
+}
+```
 
 ### Usage
 
