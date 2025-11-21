@@ -157,7 +157,7 @@ Plugins are a set of handlers and their binded components(validators, middleware
 
 ## Access Echo instance
 
-The underlying Echo instance can be accessed by passing the value for `EchoFn` in the config. This would be useful for binding service level middleware, enable echo's debug mode or any other Echo features.
+The underlying Echo instance can be accessed by passing the value for `EchoFn` in the config. This would be useful for binding service level middlewares, enabling echo's debug mode or any other Echo features.
 
 Example config:
 
