@@ -210,9 +210,11 @@ func (s *server) setup(cfg *Config) error {
 	}
 	// register plugin validations and routes
 	for _, plugin := range cfg.Plugins {
-		err = plugin.ValidationRegistrar(vdt)
-		if err != nil {
-			return errors.New("error registering plugin validation: " + err.Error())
+		if plugin.ValidationRegistrar != nil {
+			err = plugin.ValidationRegistrar(vdt)
+			if err != nil {
+				return errors.New("error registering plugin validation: " + err.Error())
+			}
 		}
 		// Register plugin routes
 		fmt.Println("Registering plugin routes")
