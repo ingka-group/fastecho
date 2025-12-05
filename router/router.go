@@ -139,6 +139,8 @@ func (r *Router) Setup() error {
 			route.group.PATCH(route.path, route.handlerFunc)
 		case http.MethodDelete:
 			route.group.DELETE(route.path, route.handlerFunc)
+		case http.MethodPut:
+			route.group.PUT(route.path, route.handlerFunc)
 		default:
 			return errs.New(
 				fmt.Sprintf("not suitable router method found for: %s", route.restVerb),
