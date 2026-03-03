@@ -49,6 +49,7 @@ type Route struct {
 	path        string
 	handlerFunc echo.HandlerFunc
 	restVerb    string
+	middlewares []echo.MiddlewareFunc
 }
 
 // NewRouter creates a new Router.
@@ -93,12 +94,13 @@ func NewRouter(cfg Config) (*Router, error) {
 }
 
 // AddRoute adds a route.
-func AddRoute(r *Router, group *echo.Group, path string, handlerFunc echo.HandlerFunc, restVerb string) *Router {
+func AddRoute(r *Router, group *echo.Group, path string, handlerFunc echo.HandlerFunc, restVerb string, middlewareFuncs ...echo.MiddlewareFunc) *Router {
 	r.Routes = append(r.Routes, Route{
 		group:       group,
 		path:        path,
 		handlerFunc: handlerFunc,
 		restVerb:    restVerb,
+		middlewares: middlewareFuncs,
 	})
 
 	return r
@@ -132,15 +134,15 @@ func (r *Router) Setup() error {
 		}
 		switch route.restVerb {
 		case http.MethodGet:
-			route.group.GET(route.path, route.handlerFunc)
+			route.group.GET(route.path, route.handlerFunc, route.middlewares...)
 		case http.MethodPost:
-			route.group.POST(route.path, route.handlerFunc)
+			route.group.POST(route.path, route.handlerFunc, route.middlewares...)
 		case http.MethodPatch:
-			route.group.PATCH(route.path, route.handlerFunc)
+			route.group.PATCH(route.path, route.handlerFunc, route.middlewares...)
 		case http.MethodDelete:
-			route.group.DELETE(route.path, route.handlerFunc)
+			route.group.DELETE(route.path, route.handlerFunc, route.middlewares...)
 		case http.MethodPut:
-			route.group.PUT(route.path, route.handlerFunc)
+			route.group.PUT(route.path, route.handlerFunc, route.middlewares...)
 		default:
 			return errs.New(
 				fmt.Sprintf("not suitable router method found for: %s", route.restVerb),
