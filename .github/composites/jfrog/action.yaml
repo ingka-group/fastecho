@@ -26,7 +26,7 @@ runs:
   using: "composite"
   steps:
     - name: Set up Artifactory CLI
-      uses: jfrog/setup-jfrog-cli@v4
+      uses: jfrog/setup-jfrog-cli@5a4fbe1e30dbb570cc62d2513421c4b9bc3c9959 # v4.10.1
       id: jf-oidc
       env:
         JF_URL: ${{ inputs.jf_url }}
@@ -55,7 +55,7 @@ runs:
         jf go-publish --build-name=$BUILD_NAME --build-number=$VERSION $VERSION
 
     - name: Discard Old Builds in Artifactory
-      if: success() && ${{ inputs.version }} != ''
+      if: ${{ success() && inputs.version != '' }}
       shell: bash
       run: |
         jf rt bdi c --max-builds=5

@@ -18,18 +18,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Get latest tag
-        uses: WyriHaximus/github-action-get-previous-tag@v2.0.0
+        uses: WyriHaximus/github-action-get-previous-tag@61819f33034117e6c686e6a31dba995a85afc9de # v2.0.0
         id: previous_version
         with:
           prefix: v
 
       - name: Bump version and push tag
-        uses: anothrNick/github-tag-action@1.75.0
+        uses: anothrNick/github-tag-action@4ed44965e0db8dab2b466a16da04aec3cc312fd8 # v1.75.0
         id: bump_version
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -41,7 +41,7 @@ jobs:
           DEFAULT_BUMP: patch
 
       - name: JFrog scanning
-        uses: ingka-group/fastecho/.github/composites/jfrog@main
+        uses: ./.github/composites/jfrog
         with:
           jf_url: ${{ secrets.JF_URL }}
           jf_oidc_provider: ${{ secrets.JF_OIDC_PROVIDER }}
@@ -51,7 +51,7 @@ jobs:
 
       - name: Build changelog
         id: build_changelog
-        uses: mikepenz/release-changelog-builder-action@v6
+        uses: mikepenz/release-changelog-builder-action@bcae7115752d4ed746ff92feb666574428a79415 # v6.2.1
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -74,7 +74,7 @@ jobs:
           fi
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           prerelease: false
           draft: false
