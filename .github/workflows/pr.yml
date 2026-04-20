@@ -39,7 +39,7 @@ jobs:
           go install honnef.co/go/tools/cmd/staticcheck@latest
 
       - name: Run .pre-commit-config.yaml
-        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+        uses: ./.github/composites/pre-commit
 
       - name: Bump version and push tag
         uses: anothrNick/github-tag-action@4ed44965e0db8dab2b466a16da04aec3cc312fd8 # v1.75.0
