@@ -55,7 +55,7 @@ jobs:
           DRY_RUN: true # Do not push the tag during PR
 
       - name: JFrog scanning
-        uses: ingka-group/fastecho/.github/composites/jfrog@main
+        uses: ./.github/composites/jfrog
         with:
           jf_url: ${{ secrets.JF_URL }}
           jf_oidc_provider: ${{ secrets.JF_OIDC_PROVIDER }}
