@@ -174,6 +174,12 @@ func (s *server) setup(cfg *Config) error {
 	// set up middlewares
 	s.middlewares(cfg)
 
+	// Print log level configuration at startup
+	logLevel := env.GetLogLevel()
+	fmt.Printf("\n\033[1;36m⚡ fastecho log configuration\033[0m\n")
+	fmt.Printf("  \033[1;33mLOG_LEVEL\033[0m  (env) : \033[1;32m%s\033[0m\n", logLevel)
+	fmt.Printf("  \033[1;33mEchoZap level\033[0m        : \033[1;32m%s\033[0m\n", s.Logger.Level().String())
+
 	fastechoRouter, err := router.NewRouter(
 		router.Config{
 			Echo:             s.Echo,

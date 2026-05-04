@@ -134,14 +134,14 @@ type dbConfig struct {
 }
 
 // gormLogLevel maps a log level string to a gorm logger.LogLevel.
-func gormLogLevel(level string) logger.LogLevel {
+func gormLogLevel(level string) (logger.LogLevel, string) {
 	switch level {
 	case env.ProdLogLevel:
-		return logger.Error
+		return logger.Error, "error"
 	case env.TestLogLevel:
-		return logger.Warn
+		return logger.Warn, "warn"
 	default:
-		return logger.Info
+		return logger.Info, "info"
 	}
 }
 
@@ -153,8 +153,9 @@ func (c *dbConfig) setup(cfg *gorm.Config) (*gorm.DB, error) {
 	}
 
 	if cfg == nil {
+		logLevel, _ := gormLogLevel(env.GetLogLevel())
 		cfg = &gorm.Config{
-			Logger: logger.Default.LogMode(gormLogLevel(env.GetLogLevel())),
+			Logger: logger.Default.LogMode(logLevel),
 		}
 	}
 
