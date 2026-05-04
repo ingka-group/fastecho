@@ -106,6 +106,13 @@ func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
+	logLevel := env.GetLogLevel()
+	_, gormLevelStr := gormLogLevel(logLevel)
+	printBanner("fastecho database configuration",
+		"LOG_LEVEL (env)", logLevel,
+		"GORM level", gormLevelStr,
+	)
+
 	sqlDb, err := db.DB()
 	if err != nil {
 		return nil, err
