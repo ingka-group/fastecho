@@ -44,17 +44,10 @@ import (
 )
 
 const (
-	hostname = "HOSTNAME"
-	port     = "PORT"
-	envType  = "ENV_TYPE"
-
+	hostname        = "HOSTNAME"
+	port            = "PORT"
 	swaggerUITitle  = "SWAGGER_UI_TITLE"
 	swaggerJSONPath = "SWAGGER_JSON_PATH"
-
-	localEnv = "local"
-	devEnv   = "dev"
-	testEnv  = "test"
-	prodEnv  = "prod"
 )
 
 var (
@@ -67,16 +60,16 @@ var (
 			DefaultValue: "8080",
 			IsInteger:    true,
 		},
-		envType: {
-			DefaultValue: devEnv,
-			OneOf:        []string{localEnv, devEnv, testEnv, prodEnv},
-		},
 		swaggerJSONPath: {
 			// Defines the path to the swagger.json file on the server. This is used by the swagger UI.
 			DefaultValue: "/swagger/swagger.json",
 		},
 		swaggerUITitle: {
 			DefaultValue: "FastEcho Service",
+		},
+		env.LogLevel: {
+			DefaultValue: env.DevLogLevel,
+			OneOf:        []string{env.DevLogLevel, env.TestLogLevel, env.ProdLogLevel},
 		},
 	}
 )
@@ -278,7 +271,6 @@ func (s *server) middlewares(cfg *Config) {
 				return isSwaggerRoute(ctx) || isMetricsRoute(ctx) || isHealthRoute(ctx)
 			}),
 			otel.WithServiceName(cfg.Opts.Tracing.ServiceName),
-			otel.WithEnv(envs[envType].Value),
 		))
 	}
 

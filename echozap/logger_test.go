@@ -21,26 +21,28 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/ingka-group/fastecho/env"
 )
 
 func TestNew(t *testing.T) {
 	tests := []struct {
-		name    string
-		envType string
+		name     string
+		logLevel string
 	}{
 		{
-			name:    "ok: log message NO env happy path",
-			envType: "",
+			name:     "ok: log message NO env happy path",
+			logLevel: "",
 		},
 		{
-			name:    "ok: log message PROD env happy path",
-			envType: ProdEnv,
+			name:     "ok: log message PROD level happy path",
+			logLevel: env.ProdLogLevel,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Setenv(EnvType, test.envType)
+			t.Setenv(env.LogLevel, test.logLevel)
 			logger, err := New()
 
 			assert.NoError(t, err)

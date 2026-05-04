@@ -35,7 +35,6 @@ type TracerConfig struct {
 	Propagators    propagation.TextMapPropagator
 	Skipper        middleware.Skipper
 	ServiceName    string
-	Env            string
 }
 
 func WithPropagators(propagators propagation.TextMapPropagator) Option {
@@ -67,12 +66,5 @@ func WithSkipper(skipper middleware.Skipper) Option {
 func WithServiceName(serviceName string) Option {
 	return optionFunc(func(cfg *TracerConfig) {
 		cfg.ServiceName = serviceName
-	})
-}
-
-// WithEnv specifies the environment for filtering the spans
-func WithEnv(env string) Option {
-	return optionFunc(func(cfg *TracerConfig) {
-		cfg.Env = env
 	})
 }

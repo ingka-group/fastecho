@@ -15,49 +15,42 @@
 package echozap
 
 import (
-	"fmt"
-	"os"
-
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/ingka-group/fastecho/env"
 )
 
-const (
-	EnvType = "ENV_TYPE"
-
-	DevEnv  = "dev"
-	TestEnv = "test"
-	ProdEnv = "prod"
-)
-
-// getEnvType() get the env type from the OS env
-func getEnvType() string {
-	envType := os.Getenv(EnvType)
-
-	if envType != DevEnv && envType != TestEnv && envType != ProdEnv {
-		//Fallback with a warning
-		fmt.Printf("no valid %s set, falling back to %s\n", EnvType, DevEnv)
-		envType = DevEnv
+// ZapLevel maps the log level to a zapcore.Level
+func ZapLevel(level string) zapcore.Level {
+	switch level {
+	case env.ProdLogLevel:
+		return zapcore.WarnLevel
+	case env.TestLogLevel:
+		return zapcore.InfoLevel
+	default:
+		return zapcore.DebugLevel
 	}
-
-	return envType
 }
 
-// New provides a logger with sain defaults for logging to server ENVs (dev, test, prod)
+// New provides a logger with sane defaults for logging to server environments (dev, test, prod)
 // It configures a JSON structured logger that writes info messages to stdout
 func New() (*zap.Logger, error) {
-	envType := getEnvType()
+	level := env.GetLogLevel()
 
 	var config zap.Config
-	if envType == ProdEnv {
+	if level == env.ProdLogLevel {
 		config = zap.NewProductionConfig()
-	} else { // TestEnv, DevEnv
+	} else { // TestLogLevel, DevLogLevel
 		config = zap.NewDevelopmentConfig()
 
 		// Custom zap.NewDevelopmentConfig settings
 		config.EncoderConfig = zap.NewProductionEncoderConfig()
 		config.Encoding = "json" // Use structure logging
 	}
+
+	// Override log level based on fastecho logic above
+	config.Level = zap.NewAtomicLevelAt(ZapLevel(level))
 
 	// Use CapitalLevelEncoder in all envs
 	config.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder

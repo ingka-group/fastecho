@@ -133,6 +133,18 @@ type dbConfig struct {
 	ConnMaxLifetime time.Duration
 }
 
+// gormLogLevel maps a log level string to a gorm logger.LogLevel.
+func gormLogLevel(level string) logger.LogLevel {
+	switch level {
+	case env.ProdLogLevel:
+		return logger.Error
+	case env.TestLogLevel:
+		return logger.Warn
+	default:
+		return logger.Info
+	}
+}
+
 // setup creates a new database based on the configuration given.
 func (c *dbConfig) setup(cfg *gorm.Config) (*gorm.DB, error) {
 	dsn, err := c.buildDSN()
@@ -142,7 +154,7 @@ func (c *dbConfig) setup(cfg *gorm.Config) (*gorm.DB, error) {
 
 	if cfg == nil {
 		cfg = &gorm.Config{
-			Logger: logger.Default.LogMode(logger.Info),
+			Logger: logger.Default.LogMode(gormLogLevel(env.GetLogLevel())),
 		}
 	}
 
