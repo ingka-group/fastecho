@@ -39,7 +39,6 @@ import (
 	"github.com/ingka-group/fastecho/env"
 	"github.com/ingka-group/fastecho/otel"
 	"github.com/ingka-group/fastecho/router"
-	"github.com/ingka-group/fastecho/stringutils"
 )
 
 const (
@@ -253,12 +252,7 @@ func (s *server) config(cfg *Config) error {
 
 	// enable/disable tracing
 	if !cfg.Opts.Tracing.Skip {
-		serviceName := os.Getenv("OTEL_SERVICE_NAME")
-		if stringutils.IsEmpty(serviceName) {
-			return errors.New("OTEL_SERVICE_NAME env var is required when tracing is enabled")
-		}
-
-		tracerProvider, tracer, err = newTracer(serviceName)
+		tracerProvider, tracer, err = newTracer()
 		if err != nil {
 			return err
 		}

@@ -26,8 +26,9 @@ import (
 )
 
 // newTracer creates a new OTEL tracer.
+// Service name is read from OTEL_SERVICE_NAME env var via resource.WithFromEnv().
 // Resource attributes (e.g. deployment.environment) can be set via OTEL_RESOURCE_ATTRIBUTES.
-func newTracer(serviceName string) (*sdktrace.TracerProvider, *oteltrace.Tracer, error) {
+func newTracer() (*sdktrace.TracerProvider, *oteltrace.Tracer, error) {
 	exporter, err := otlptracegrpc.New(gocontext.Background())
 	if err != nil {
 		return nil, nil, err
@@ -53,6 +54,6 @@ func newTracer(serviceName string) (*sdktrace.TracerProvider, *oteltrace.Tracer,
 		),
 	)
 
-	tracer := tp.Tracer(serviceName)
+	tracer := tp.Tracer("github.com/ingka-group/fastecho")
 	return tp, &tracer, nil
 }
