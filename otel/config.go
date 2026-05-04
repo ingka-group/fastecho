@@ -34,7 +34,6 @@ type TracerConfig struct {
 	TracerProvider oteltrace.TracerProvider
 	Propagators    propagation.TextMapPropagator
 	Skipper        middleware.Skipper
-	ServiceName    string
 }
 
 func WithPropagators(propagators propagation.TextMapPropagator) Option {
@@ -59,12 +58,5 @@ func WithTracerProvider(provider oteltrace.TracerProvider) Option {
 func WithSkipper(skipper middleware.Skipper) Option {
 	return optionFunc(func(cfg *TracerConfig) {
 		cfg.Skipper = skipper
-	})
-}
-
-// WithServiceName specifies the name of the service
-func WithServiceName(serviceName string) Option {
-	return optionFunc(func(cfg *TracerConfig) {
-		cfg.ServiceName = serviceName
 	})
 }

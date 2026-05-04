@@ -48,8 +48,7 @@ type MetricsOpts struct {
 
 // TracingOpts define configuration options for tracing.
 type TracingOpts struct {
-	Skip        bool   `json:"skip"`
-	ServiceName string `json:"service_name"`
+	Skip bool `json:"skip"`
 }
 
 // HealthChecksOpts define configuration options for health checks.
