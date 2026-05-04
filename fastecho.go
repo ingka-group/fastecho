@@ -174,6 +174,13 @@ func (s *server) setup(cfg *Config) error {
 	// set up middlewares
 	s.middlewares(cfg)
 
+	// Print log level configuration at startup
+	logLevel := env.GetLogLevel()
+	printBanner("fastecho log configuration",
+		"LOG_LEVEL (env)", logLevel,
+		"EchoZap level", s.Logger.Level().String(),
+	)
+
 	fastechoRouter, err := router.NewRouter(
 		router.Config{
 			Echo:             s.Echo,

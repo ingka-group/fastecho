@@ -18,7 +18,7 @@ import (
 	gocontext "context"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -29,7 +29,7 @@ import (
 // newTracer creates a new OTEL tracer.
 // Resource attributes (e.g. deployment.environment) can be set via OTEL_RESOURCE_ATTRIBUTES.
 func newTracer(serviceName string) (*sdktrace.TracerProvider, *oteltrace.Tracer, error) {
-	exporter, err := otlptracehttp.New(gocontext.Background())
+	exporter, err := otlptracegrpc.New(gocontext.Background())
 	if err != nil {
 		return nil, nil, err
 	}
