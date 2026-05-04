@@ -103,7 +103,7 @@ func setSpanStatus(span oteltrace.Span, status int) {
 
 func startSpan(c echo.Context, tracer oteltrace.Tracer, ctx context.Context, config *TracerConfig) (context.Context, oteltrace.Span) {
 	opts := []oteltrace.SpanStartOption{
-		oteltrace.WithAttributes(GetHttpRequestAttributes(c, c.Request(), config)...),
+		oteltrace.WithAttributes(GetHttpRequestAttributes(c, c.Request())...),
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 	}
 	if path := c.Path(); path != "" {
@@ -131,7 +131,7 @@ func setDefaultConfig(config *TracerConfig) {
 	}
 }
 
-func GetHttpRequestAttributes(c echo.Context, req *http.Request, config *TracerConfig) []attribute.KeyValue {
+func GetHttpRequestAttributes(c echo.Context, req *http.Request) []attribute.KeyValue {
 
 	// http.method
 	method := req.Method
@@ -180,7 +180,6 @@ func GetHttpRequestAttributes(c echo.Context, req *http.Request, config *TracerC
 		attribute.String("net.sock.peer.port", peerPort),
 		attribute.String("http.user_agent", userAgent),
 		attribute.String("http.client_ip", clientIP),
-		attribute.String("server.name", config.ServiceName),
 	}
 }
 

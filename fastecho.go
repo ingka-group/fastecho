@@ -37,10 +37,8 @@ import (
 	"github.com/ingka-group/fastecho/context"
 	"github.com/ingka-group/fastecho/echozap"
 	"github.com/ingka-group/fastecho/env"
-	"github.com/ingka-group/fastecho/errs"
 	"github.com/ingka-group/fastecho/otel"
 	"github.com/ingka-group/fastecho/router"
-	"github.com/ingka-group/fastecho/stringutils"
 )
 
 const (
@@ -254,11 +252,7 @@ func (s *server) config(cfg *Config) error {
 
 	// enable/disable tracing
 	if !cfg.Opts.Tracing.Skip {
-		if stringutils.IsEmpty(cfg.Opts.Tracing.ServiceName) {
-			return errs.New("service name not provided for tracing")
-		}
-
-		tracerProvider, tracer, err = newTracer(cfg.Opts.Tracing.ServiceName)
+		tracerProvider, tracer, err = newTracer()
 		if err != nil {
 			return err
 		}
@@ -277,7 +271,6 @@ func (s *server) middlewares(cfg *Config) {
 			otel.WithSkipper(func(ctx echo.Context) bool {
 				return isSwaggerRoute(ctx) || isMetricsRoute(ctx) || isHealthRoute(ctx)
 			}),
-			otel.WithServiceName(cfg.Opts.Tracing.ServiceName),
 		))
 	}
 
