@@ -36,26 +36,26 @@ type Config struct {
 
 // Opts define configuration options for fastecho.
 type Opts struct {
-	Metrics      MetricsOpts
-	Tracing      TracingOpts
-	HealthChecks HealthChecksOpts
+	Metrics      MetricsOpts      `json:"metrics"`
+	Tracing      TracingOpts      `json:"tracing"`
+	HealthChecks HealthChecksOpts `json:"health_checks"`
 }
 
 // MetricsOpts define configuration options for metrics.
 type MetricsOpts struct {
-	Skip bool
+	Skip bool `json:"skip"`
 }
 
 // TracingOpts define configuration options for tracing.
 type TracingOpts struct {
-	Skip        bool
-	ServiceName string
+	Skip        bool   `json:"skip"`
+	ServiceName string `json:"service_name"`
 }
 
 // HealthChecksOpts define configuration options for health checks.
 type HealthChecksOpts struct {
-	Skip bool
-	DB   *gorm.DB
+	Skip bool     `json:"skip"`
+	DB   *gorm.DB `json:"db,omitempty"`
 }
 
 type Plugin struct {

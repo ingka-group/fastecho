@@ -181,7 +181,6 @@ func GetHttpRequestAttributes(c echo.Context, req *http.Request, config *TracerC
 		attribute.String("http.user_agent", userAgent),
 		attribute.String("http.client_ip", clientIP),
 		attribute.String("server.name", config.ServiceName),
-		attribute.String("environment", config.Env),
 	}
 }
 

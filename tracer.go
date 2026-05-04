@@ -27,8 +27,19 @@ import (
 )
 
 // newTracer creates a new OTEL tracer.
+// Resource attributes (e.g. deployment.environment) can be set via OTEL_RESOURCE_ATTRIBUTES.
 func newTracer(serviceName string) (*sdktrace.TracerProvider, *oteltrace.Tracer, error) {
 	exporter, err := otlptracehttp.New(gocontext.Background())
+	if err != nil {
+		return nil, nil, err
+	}
+
+	res, err := resource.New(gocontext.Background(),
+		resource.WithFromEnv(),
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(serviceName),
+		),
+	)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -36,10 +47,7 @@ func newTracer(serviceName string) (*sdktrace.TracerProvider, *oteltrace.Tracer,
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(serviceName),
-		)),
+		sdktrace.WithResource(res),
 	)
 
 	otel.SetTracerProvider(tp)
