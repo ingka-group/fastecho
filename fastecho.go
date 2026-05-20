@@ -307,7 +307,24 @@ func (s *server) middlewares(cfg *Config) {
 	}
 
 	// Recover
-	s.Echo.Use(middleware.Recover())
+	s.Echo.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{
+		DisablePrintStack: true,
+		LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
+			req := c.Request()
+			spanCtx := trace.SpanContextFromContext(req.Context())
+			s.Logger.Error("panic recovered",
+				zap.Error(err),
+				zap.String("method", req.Method),
+				zap.String("path", c.Path()),
+				zap.String("uri", req.RequestURI),
+				zap.String("request_id", c.Response().Header().Get(echo.HeaderXRequestID)),
+				zap.String("trace_id", spanCtx.TraceID().String()),
+				zap.String("span_id", spanCtx.SpanID().String()),
+				zap.ByteString("stack", stack),
+			)
+			return err
+		},
+	}))
 }
 
 // run starts the server and listens for interrupt signals to gracefully shut it down.
