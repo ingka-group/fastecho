@@ -31,7 +31,6 @@ import (
 )
 
 const (
-	tracerKey = "fastecho-tracer"
 	// ScopeName is the instrumentation scope name.
 	ScopeName = "github.com/ingka-group/fastecho/"
 )
@@ -62,7 +61,6 @@ func Middleware(options ...Option) echo.MiddlewareFunc {
 }
 
 func handleRequest(c echo.Context, tracer oteltrace.Tracer, config *TracerConfig, next echo.HandlerFunc) error {
-	c.Set(tracerKey, tracer)
 	request := c.Request()
 	savedCtx := request.Context()
 	defer func() {
@@ -74,7 +72,7 @@ func handleRequest(c echo.Context, tracer oteltrace.Tracer, config *TracerConfig
 	// https://www.w3.org/TR/trace-context/#traceparent-header-field-values
 	ctx := config.Propagators.Extract(savedCtx, propagation.HeaderCarrier(request.Header))
 
-	ctx, span := startSpan(c, tracer, ctx, config)
+	ctx, span := startRequestSpan(c, tracer, ctx, config)
 	defer span.End()
 
 	c.SetRequest(request.WithContext(ctx))
@@ -101,7 +99,7 @@ func setSpanStatus(span oteltrace.Span, status int) {
 	}
 }
 
-func startSpan(c echo.Context, tracer oteltrace.Tracer, ctx context.Context, config *TracerConfig) (context.Context, oteltrace.Span) {
+func startRequestSpan(c echo.Context, tracer oteltrace.Tracer, ctx context.Context, config *TracerConfig) (context.Context, oteltrace.Span) {
 	opts := []oteltrace.SpanStartOption{
 		oteltrace.WithAttributes(GetHttpRequestAttributes(c, c.Request())...),
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
