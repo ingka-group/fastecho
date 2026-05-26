@@ -34,9 +34,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/ingka-group/fastecho/context"
 	"github.com/ingka-group/fastecho/echozap"
 	"github.com/ingka-group/fastecho/env"
+	"github.com/ingka-group/fastecho/fctx"
 	"github.com/ingka-group/fastecho/otel"
 	"github.com/ingka-group/fastecho/router"
 )
@@ -301,11 +301,12 @@ func (s *server) middlewares(cfg *Config) {
 		},
 	}))
 
-	// Context — uses the deprecated ServiceContextMiddleware which also
-	// populates fctx keys for interop. Services can switch to fctx.Middleware
-	// directly when all their handlers are migrated.
-	//lint:ignore SA1019 intentional: kept for backward compat during fctx migration
-	s.Echo.Use(context.ServiceContextMiddleware(s.Logger, s.Tracer, cfg.ContextProps))
+	// Context
+	var tracer trace.Tracer
+	if s.Tracer != nil {
+		tracer = *s.Tracer
+	}
+	s.Echo.Use(fctx.Middleware(s.Logger, tracer))
 
 	// Gzip
 	s.Echo.Use(middleware.GzipWithConfig(middleware.GzipConfig{
