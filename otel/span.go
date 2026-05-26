@@ -16,10 +16,12 @@ package otel
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"strings"
 
 	otelSDK "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -49,10 +51,18 @@ func StartSpan(ctx context.Context, opts ...trace.SpanStartOption) (context.Cont
 //	    result = computeHeavyAlgorithm(data)
 //	})
 //
+// If fn panics, the panic is recorded on the span and re-raised.
 // If tracing is not configured, fn is still called (no-op span).
 func Trace(ctx context.Context, name string, fn func()) {
 	_, span := otelSDK.Tracer(ScopeName).Start(ctx, name)
 	defer span.End()
+	defer func() {
+		if r := recover(); r != nil {
+			span.SetStatus(codes.Error, fmt.Sprintf("panic: %v", r))
+			span.RecordError(fmt.Errorf("panic: %v", r))
+			panic(r)
+		}
+	}()
 	fn()
 }
 

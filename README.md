@@ -153,7 +153,7 @@ Tracing is enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Disable with `Opts
 | Layer | How | Effort |
 |-------|-----|--------|
 | HTTP requests | Automatic via middleware | Zero config |
-| Database (GORM) | Automatic via `NewDB` | Zero config |
+| Database (GORM) | `gorm.io/plugin/opentelemetry` | Add plugin yourself |
 | Service functions | `otel.StartSpan(ctx)` | 2 lines |
 | Functions without ctx | `otel.Trace(ctx, name, fn)` | 3 lines |
 | Outbound HTTP | `otelhttp.NewTransport(rt)` | Wrap your client |
@@ -180,10 +180,12 @@ feotel.Trace(ctx, "heavy-algorithm", func() {
 })
 ```
 
-For standalone DB connections not created via `NewDB`:
+For database tracing, add `gorm.io/plugin/opentelemetry` to your project:
 
 ```go
-_ = feotel.UseGormTracing(db, feotel.WithDBName("bigquery"))
+import "gorm.io/plugin/opentelemetry/tracing"
+
+_ = db.Use(tracing.NewPlugin())
 ```
 
 **Important:** Always pass context to GORM queries (`db.WithContext(ctx).Find(...)`) so DB spans attach to the request trace.

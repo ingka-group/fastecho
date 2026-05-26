@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otelSDK "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	otelTrace "go.opentelemetry.io/otel/trace"
@@ -161,4 +162,25 @@ func TestTrace_NoopWhenNoGlobalTracer(t *testing.T) {
 		})
 	})
 	assert.True(t, called, "function should still execute even without tracing")
+}
+
+func TestTrace_RecordsPanicAndReraises(t *testing.T) {
+	exp := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
+	defer func() { _ = tp.Shutdown(context.Background()) }()
+
+	prev := setGlobalTPForSpan(tp)
+	defer setGlobalTPForSpan(prev)
+
+	assert.PanicsWithValue(t, "something broke", func() {
+		feotel.Trace(context.Background(), "panicking-work", func() {
+			panic("something broke")
+		})
+	})
+
+	spans := exp.GetSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, "panicking-work", spans[0].Name)
+	assert.Equal(t, codes.Error, spans[0].Status.Code)
+	assert.Contains(t, spans[0].Status.Description, "panic: something broke")
 }

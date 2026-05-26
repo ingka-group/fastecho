@@ -29,7 +29,6 @@ import (
 	"gorm.io/gorm/logger"
 
 	"github.com/ingka-group/fastecho/env"
-	"github.com/ingka-group/fastecho/otel"
 )
 
 const (
@@ -121,10 +120,6 @@ func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 
 	err = migrateDB(sqlDb)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := otel.UseGormTracing(db, otel.WithDBName(dbEnvs[dbName].Value)); err != nil {
 		return nil, err
 	}
 
