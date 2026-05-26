@@ -304,6 +304,7 @@ func (s *server) middlewares(cfg *Config) {
 	// Context — uses the deprecated ServiceContextMiddleware which also
 	// populates fctx keys for interop. Services can switch to fctx.Middleware
 	// directly when all their handlers are migrated.
+	//lint:ignore SA1019 intentional: kept for backward compat during fctx migration
 	s.Echo.Use(context.ServiceContextMiddleware(s.Logger, s.Tracer, cfg.ContextProps))
 
 	// Gzip
