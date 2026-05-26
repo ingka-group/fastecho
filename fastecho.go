@@ -138,6 +138,16 @@ func (fe *FastEcho) Shutdown(ctx gocontext.Context) error {
 	return fe.server.Echo.Shutdown(ctx)
 }
 
+// BindValidate binds the request body to v and validates it using the
+// registered validator (typically go-playground/validator). Use this at
+// the handler boundary — it reads HTTP state from echo.Context.
+func BindValidate(ec echo.Context, v any) error {
+	if err := ec.Bind(v); err != nil {
+		return err
+	}
+	return ec.Validate(v)
+}
+
 func newServer(cfg *Config) (*server, error) {
 	// Set up the server
 	s := &server{}
@@ -291,7 +301,9 @@ func (s *server) middlewares(cfg *Config) {
 		},
 	}))
 
-	// Context
+	// Context — uses the deprecated ServiceContextMiddleware which also
+	// populates fctx keys for interop. Services can switch to fctx.Middleware
+	// directly when all their handlers are migrated.
 	s.Echo.Use(context.ServiceContextMiddleware(s.Logger, s.Tracer, cfg.ContextProps))
 
 	// Gzip
