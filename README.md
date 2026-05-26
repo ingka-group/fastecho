@@ -147,7 +147,47 @@ var (
 	}
 ```
 ### OTEL tracing (optional)
-Tracing is enabled only if the `OTEL_TRACING` env var is set to true.
+
+Tracing is enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Disable with `Opts.Tracing.Skip = true`.
+
+| Layer | How | Effort |
+|-------|-----|--------|
+| HTTP requests | Automatic via middleware | Zero config |
+| Database (GORM) | Automatic via `NewDB` | Zero config |
+| Service functions | `otel.StartSpan(ctx)` | 2 lines |
+| Functions without ctx | `otel.Trace(ctx, name, fn)` | 3 lines |
+| Outbound HTTP | `otelhttp.NewTransport(rt)` | Wrap your client |
+
+Per-function tracing:
+
+```go
+import feotel "github.com/ingka-group/fastecho/otel"
+
+func (s *Service) Process(ctx context.Context, input Input) error {
+    ctx, span := feotel.StartSpan(ctx)
+    defer span.End()
+    // span name auto-discovered: "mypackage.Service.Process"
+    return s.repo.Save(ctx, input)
+}
+```
+
+Tracing a function without context:
+
+```go
+var result Result
+feotel.Trace(ctx, "heavy-algorithm", func() {
+    result = computeHeavyAlgorithm(data)
+})
+```
+
+For standalone DB connections not created via `NewDB`:
+
+```go
+_ = feotel.UseGormTracing(db, feotel.WithDBName("bigquery"))
+```
+
+**Important:** Always pass context to GORM queries (`db.WithContext(ctx).Find(...)`) so DB spans attach to the request trace.
+
 ### Database (optional)
 Fastecho has an optional postgres DB connection baked into it using `gorm`. We are using `goose` for migrations rather than gorm Automigrate. The migrations are expected to be under `db/migrations` in the root of your folder.
 
