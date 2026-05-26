@@ -150,13 +150,13 @@ var (
 
 Tracing is enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Disable with `Opts.Tracing.Skip = true`.
 
-| Layer | How | Effort |
-|-------|-----|--------|
-| HTTP requests | Automatic via middleware | Zero config |
-| Database (GORM) | `gorm.io/plugin/opentelemetry` | Add plugin yourself |
-| Service functions | `otel.StartSpan(ctx)` | 2 lines |
-| Functions without ctx | `otel.Trace(ctx, name, fn)` | 3 lines |
-| Outbound HTTP | `otelhttp.NewTransport(rt)` | Wrap your client |
+| Layer                 | How                            | Effort              |
+|-----------------------|--------------------------------|---------------------|
+| HTTP requests         | Automatic via middleware       | Zero config         |
+| Database (GORM)       | `gorm.io/plugin/opentelemetry` | Add plugin yourself |
+| Service functions     | `otel.StartSpan(ctx)`          | 2 lines             |
+| Functions without ctx | `otel.Trace(ctx, name, fn)`    | 3 lines             |
+| Outbound HTTP         | `otelhttp.NewTransport(rt)`    | Wrap your client    |
 
 Per-function tracing:
 
