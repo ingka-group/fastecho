@@ -161,10 +161,10 @@ Tracing is enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Disable with `Opts
 Per-function tracing:
 
 ```go
-import feotel "github.com/ingka-group/fastecho/otel"
+import "github.com/ingka-group/fastecho/otel"
 
 func (s *Service) Process(ctx context.Context, input Input) error {
-    ctx, span := feotel.StartSpan(ctx)
+    ctx, span := otel.StartSpan(ctx)
     defer span.End()
     // span name auto-discovered: "mypackage.Service.Process"
     return s.repo.Save(ctx, input)
@@ -175,7 +175,7 @@ Tracing a function without context:
 
 ```go
 var result Result
-feotel.Trace(ctx, "heavy-algorithm", func() {
+otel.Trace(ctx, "heavy-algorithm", func() {
     result = computeHeavyAlgorithm(data)
 })
 ```
