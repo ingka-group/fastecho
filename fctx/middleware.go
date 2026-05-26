@@ -15,10 +15,31 @@
 package fctx
 
 import (
+	"context"
+
 	"github.com/labstack/echo/v4"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
+
+type loggerKey struct{}
+type tracerKey struct{}
+type requestIDKey struct{}
+
+// WithLogger stores the logger in ctx.
+func WithLogger(ctx context.Context, l *zap.Logger) context.Context {
+	return context.WithValue(ctx, loggerKey{}, l)
+}
+
+// WithTracer stores the tracer in ctx.
+func WithTracer(ctx context.Context, t trace.Tracer) context.Context {
+	return context.WithValue(ctx, tracerKey{}, t)
+}
+
+// WithRequestID stores the request ID in ctx.
+func WithRequestID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, requestIDKey{}, id)
+}
 
 // Middleware injects logger, tracer, and request ID into the request's
 // context.Context, making them available via [Logger], [Tracer], and
