@@ -139,8 +139,7 @@ func (fe *FastEcho) Shutdown(ctx gocontext.Context) error {
 }
 
 // BindValidate binds the request body to v and validates it using the
-// registered validator (typically go-playground/validator). Use this at
-// the handler boundary — it reads HTTP state from echo.Context.
+// registered validator. Use this at the handler boundary.
 func BindValidate(ec echo.Context, v any) error {
 	if err := ec.Bind(v); err != nil {
 		return err

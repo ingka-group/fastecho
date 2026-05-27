@@ -19,7 +19,6 @@ import (
 	"github.com/ingka-group/fastecho/fctx"
 )
 
-// testFixture holds common test objects for middleware tests.
 type testFixture struct {
 	ec     echo.Context
 	logger *zap.Logger
@@ -183,7 +182,7 @@ func TestMiddleware_ContextSurvivesRequestClone(t *testing.T) {
 
 	err := fctx.Middleware(f.logger, f.tracer)(cloningMW(handler))(f.ec)
 	require.NoError(t, err)
-	assert.True(t, gotLogger, "Clone preserves context — values survive")
+	assert.True(t, gotLogger, "Clone preserves context, values survive")
 }
 
 func TestMiddleware_ContextLostWhenReplacedWithBackground(t *testing.T) {
@@ -200,11 +199,11 @@ func TestMiddleware_ContextLostWhenReplacedWithBackground(t *testing.T) {
 	handler := func(ec echo.Context) error {
 		l := fctx.Logger(fctx.From(ec))
 		l.Info("test") // must not panic
-		gotNop = (l != f.logger)
+		gotNop = l != f.logger
 		return nil
 	}
 
 	err := fctx.Middleware(f.logger, f.tracer)(destroyingMW(handler))(f.ec)
 	require.NoError(t, err)
-	assert.True(t, gotNop, "values lost — Logger returns nop fallback")
+	assert.True(t, gotNop, "values lost, Logger returns nop fallback")
 }

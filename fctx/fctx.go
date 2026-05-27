@@ -12,11 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package fctx provides accessors for request-scoped values carried on
-// context.Context — logger, tracer, request ID.
-//
-// Use [From] at the handler boundary to extract context.Context from
-// echo.Context, then pass it to services and repositories.
 package fctx
 
 import (
@@ -29,10 +24,6 @@ import (
 )
 
 // From returns the request-scoped context.Context from an echo.Context.
-//
-// Precondition: [Middleware] (or the deprecated ServiceContextMiddleware)
-// must have run before this handler. If unsure, call [MustLogger] on the
-// returned context to fail fast when the middleware chain is misconfigured.
 //
 // Call this once at the handler boundary; downstream code should accept
 // context.Context, not echo.Context.
@@ -50,7 +41,7 @@ func Logger(ctx context.Context) *zap.Logger {
 }
 
 // MustLogger returns the request-scoped *zap.Logger from ctx.
-// Panics if no logger is present — use in code that must fail fast
+// Panics if no logger is present. Use in code that must fail fast
 // when context is misconfigured.
 func MustLogger(ctx context.Context) *zap.Logger {
 	l, ok := ctx.Value(loggerKey{}).(*zap.Logger)
@@ -61,7 +52,7 @@ func MustLogger(ctx context.Context) *zap.Logger {
 }
 
 // Tracer returns the OTel tracer from ctx.
-// Returns a no-op tracer if none was registered — no spans are produced.
+// Returns a no-op tracer if none was registered, no spans are produced.
 func Tracer(ctx context.Context) trace.Tracer {
 	if t, ok := ctx.Value(tracerKey{}).(trace.Tracer); ok && t != nil {
 		return t

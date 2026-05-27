@@ -23,7 +23,6 @@ import (
 )
 
 // Deprecated: Use [fctx.From] and [fctx.Logger]/[fctx.Tracer]/[fctx.RequestID].
-// For shared service configuration, use constructor injection.
 type ServiceContext[T any] struct {
 	echo.Context
 	ZapLogger    *zap.Logger
@@ -46,13 +45,11 @@ func (c *ServiceContext[T]) BindValidate(i interface{}) error {
 }
 
 // Deprecated: Use [fctx.From] plus [fctx.Logger]/[fctx.Tracer].
-// Under [fctx.Middleware], returns a best-effort shim from fctx keys.
 func GetServiceContext[T any](ctx echo.Context) *ServiceContext[T] {
 	if sctx, ok := ctx.(*ServiceContext[T]); ok {
 		return sctx
 	}
 
-	// Compatibility shim for new middleware
 	reqCtx := ctx.Request().Context()
 	var zero T
 	tracer := fctx.Tracer(reqCtx)
