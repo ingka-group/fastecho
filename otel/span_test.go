@@ -114,7 +114,7 @@ func TestStartSpan_NoopWhenNoGlobalTracer(t *testing.T) {
 	assert.NotPanics(t, func() { span.End() })
 }
 
-func TestTrace(t *testing.T) {
+func TestSpanFunc(t *testing.T) {
 	exp := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
 	defer func() { _ = tp.Shutdown(context.Background()) }()
@@ -123,7 +123,7 @@ func TestTrace(t *testing.T) {
 	defer setGlobalTPForSpan(prev)
 
 	var called bool
-	feotel.Trace(context.Background(), "heavy-algorithm", func() {
+	feotel.SpanFunc(context.Background(), "heavy-algorithm", func() {
 		called = true
 	})
 
@@ -134,7 +134,7 @@ func TestTrace(t *testing.T) {
 	assert.Equal(t, "heavy-algorithm", spans[0].Name)
 }
 
-func TestTrace_ChildAttachesToParent(t *testing.T) {
+func TestSpanFunc_ChildAttachesToParent(t *testing.T) {
 	exp := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
 	defer func() { _ = tp.Shutdown(context.Background()) }()
@@ -145,7 +145,7 @@ func TestTrace_ChildAttachesToParent(t *testing.T) {
 	tracer := tp.Tracer("test")
 	ctx, parent := tracer.Start(context.Background(), "parent")
 
-	feotel.Trace(ctx, "child-work", func() {})
+	feotel.SpanFunc(ctx, "child-work", func() {})
 	parent.End()
 
 	spans := exp.GetSpans()
@@ -154,17 +154,17 @@ func TestTrace_ChildAttachesToParent(t *testing.T) {
 	assert.Equal(t, spans[1].SpanContext.SpanID(), spans[0].Parent.SpanID())
 }
 
-func TestTrace_NoopWhenNoGlobalTracer(t *testing.T) {
+func TestSpanFunc_NoopWhenNoGlobalTracer(t *testing.T) {
 	var called bool
 	assert.NotPanics(t, func() {
-		feotel.Trace(context.Background(), "noop-work", func() {
+		feotel.SpanFunc(context.Background(), "noop-work", func() {
 			called = true
 		})
 	})
 	assert.True(t, called, "function should still execute even without tracing")
 }
 
-func TestTrace_RecordsPanicAndReraises(t *testing.T) {
+func TestSpanFunc_RecordsPanicAndReraises(t *testing.T) {
 	exp := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
 	defer func() { _ = tp.Shutdown(context.Background()) }()
@@ -173,7 +173,7 @@ func TestTrace_RecordsPanicAndReraises(t *testing.T) {
 	defer setGlobalTPForSpan(prev)
 
 	assert.PanicsWithValue(t, "something broke", func() {
-		feotel.Trace(context.Background(), "panicking-work", func() {
+		feotel.SpanFunc(context.Background(), "panicking-work", func() {
 			panic("something broke")
 		})
 	})

@@ -42,18 +42,18 @@ func StartSpan(ctx context.Context, opts ...trace.SpanStartOption) (context.Cont
 	return otelSDK.Tracer(ScopeName).Start(ctx, callerName(1), opts...)
 }
 
-// Trace wraps a function call in a span with the given name. The span starts
+// SpanFunc wraps a function call in a span with the given name. The span starts
 // before fn is called and ends after fn returns. Use this for tracing functions
 // that don't accept context.Context:
 //
 //	var result T
-//	otel.Trace(ctx, "heavy-algorithm", func() {
+//	otel.SpanFunc(ctx, "heavy-algorithm", func() {
 //	    result = computeHeavyAlgorithm(data)
 //	})
 //
 // If fn panics, the panic is recorded on the span and re-raised.
 // If tracing is not configured, fn is still called (no-op span).
-func Trace(ctx context.Context, name string, fn func()) {
+func SpanFunc(ctx context.Context, name string, fn func()) {
 	_, span := otelSDK.Tracer(ScopeName).Start(ctx, name)
 	defer span.End()
 	defer func() {
