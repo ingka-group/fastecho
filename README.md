@@ -6,39 +6,45 @@ Fastecho is a Go library that provides an easily configurable, ready-to-use echo
 
 For specifics, check the detailed features below.
 ```go
-	// set up a DB and pass it to handler as you like
-	// optionally you can provide a gorm config to customize your gorm instance
-	db, err := fastecho.NewDB(&gorm.Config{
-		Logger: newLogger,
-	})
-	if err != nil {
-		log.Fatalf("failed to connect to the database: %s", err)
-	}
+// load env vars
+err := envs.SetEnv()
+if err != nil {
+    log.Fatalf("failed to set environment variables: %s", err)
+}
 
-	config := fastecho.Config{
-		ExtraEnvs:           myEnvs,
-		ValidationRegistrar: validator.RegisterValidations,
-		Routes: func(e *echo.Echo, r *router.Router) error {
-			return configureRoutes(e, r, db)
-		},
-		Opts: fastecho.Opts{
-			Tracing: fastecho.TracingOpts{
-				Skip: false,
-			},
-			Metrics: fastecho.MetricsOpts{
-				Skip: false,
-			},
-			HealthChecks: fastecho.HealthChecksOpts{
-				Skip: false,
-				DB:   db,
-			},
-		},
-	}
+// set up a DB and pass it to handler as you like
+// optionally you can provide a gorm config to customize your gorm instance
+db, err := fastecho.NewDB(&gorm.Config{
+    Logger: newLogger,
+})
+if err != nil {
+    log.Fatalf("failed to connect to the database: %s", err)
+}
 
-	// Starting service...
-	if err := fastecho.Run(&config); err != nil {
-		log.Fatalf("Service stopped! \n %s", err)
-	}
+config := fastecho.Config{
+    ExtraEnvs:           envs,
+    ValidationRegistrar: validator.RegisterValidations,
+    Routes: func(e *echo.Echo, r *router.Router) error {
+        return configureRoutes(e, r, db)
+    },
+    Opts: fastecho.Opts{
+        Tracing: fastecho.TracingOpts{
+            Skip: !envs["OTEL_ENABLED"].BooleanValue,
+        },
+        Metrics: fastecho.MetricsOpts{
+            Skip: !envs["OTEL_ENABLED"].BooleanValue,
+        },
+        HealthChecks: fastecho.HealthChecksOpts{
+            Skip: false,
+            DB:   db,
+        },
+    },
+}
+
+// Starting service...
+if err := fastecho.Run(&config); err != nil {
+    log.Fatalf("Service stopped! \n %s", err)
+}
 ```
 
 ## Features
@@ -136,18 +142,21 @@ Fastecho defines the following env vars internally:
 
 You can define additional env vars via `ExtraEnvs` in the config. These are merged with the defaults and loaded automatically when `Run()` or `Initialize()` is called:
 ```go
-var myEnvs = env.Map{
-	"MY_CUSTOM_VAR": {
-		DefaultValue: "some-default",
-	},
-	"MY_BOOLEAN_VAR": {
+var envs = env.Map{
+	"OTEL_ENABLED": {
 		DefaultValue: "false",
 		IsBoolean:    true,
 	},
 }
 
+// load them
+err := envs.SetEnv()
+if err != nil {
+    log.Fatalf("failed to set environment variables: %s", err)
+}
+
 config := fastecho.Config{
-	ExtraEnvs: myEnvs,
+	ExtraEnvs: envs,
 	// ...
 }
 ```
@@ -156,7 +165,7 @@ config := fastecho.Config{
 
 Tracing is enabled when `Opts.Tracing.Skip` is `false` (the default). The service name and exporter endpoint are configured via standard OpenTelemetry env vars:
 
-| Variable                      | Purpose                                                             |
+| Env Variable                  | Purpose                                                             |
 |-------------------------------|---------------------------------------------------------------------|
 | `OTEL_SERVICE_NAME`           | Sets the service name for traces                                    |
 | `OTEL_RESOURCE_ATTRIBUTES`    | Additional resource attributes (e.g. `deployment.environment=prod`) |
