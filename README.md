@@ -174,7 +174,7 @@ func (s *Service) Process(ctx context.Context, input Input) error {
 Tracing a function without context:
 
 ```go
-var result T 
+var result T
 otel.SpanFunc(ctx, "heavy-algorithm", func() {
     result = computeHeavyAlgorithm(data)
 })
