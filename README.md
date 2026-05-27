@@ -155,7 +155,7 @@ Tracing is enabled when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Disable with `Opts
 | HTTP requests         | Automatic via middleware       | Zero config         |
 | Database (GORM)       | `gorm.io/plugin/opentelemetry` | Add plugin yourself |
 | Service functions     | `otel.StartSpan(ctx)`          | 2 lines             |
-| Functions without ctx | `otel.Trace(ctx, name, fn)`    | 3 lines             |
+| Functions without ctx | `otel.SpanFunc(ctx, name, fn)` | 3 lines             |
 | Outbound HTTP         | `otelhttp.NewTransport(rt)`    | Wrap your client    |
 
 Per-function tracing:
@@ -174,8 +174,8 @@ func (s *Service) Process(ctx context.Context, input Input) error {
 Tracing a function without context:
 
 ```go
-var result Result
-otel.Trace(ctx, "heavy-algorithm", func() {
+var result T 
+otel.SpanFunc(ctx, "heavy-algorithm", func() {
     result = computeHeavyAlgorithm(data)
 })
 ```
