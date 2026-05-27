@@ -46,7 +46,7 @@ func StartSpan(ctx context.Context, opts ...trace.SpanStartOption) (context.Cont
 // before fn is called and ends after fn returns. Use this for tracing functions
 // that don't accept context.Context:
 //
-//	var result Result
+//	var result T
 //	otel.Trace(ctx, "heavy-algorithm", func() {
 //	    result = computeHeavyAlgorithm(data)
 //	})
@@ -76,12 +76,12 @@ func callerName(skip int) string {
 	name := runtime.FuncForPC(pc).Name()
 
 	// Strip module path: "github.com/ingka-group/myservice/internal/forecast.(*Service).Recompute"
-	// → "forecast.(*Service).Recompute"
+	// becomes "forecast.(*Service).Recompute"
 	if idx := strings.LastIndex(name, "/"); idx >= 0 {
 		name = name[idx+1:]
 	}
 
-	// Strip pointer receiver: "forecast.(*Service).Recompute" → "forecast.Service.Recompute"
+	// Strip pointer receiver: "forecast.(*Service).Recompute" becomes "forecast.Service.Recompute"
 	name = strings.ReplaceAll(name, "(*", "")
 	name = strings.ReplaceAll(name, ")", "")
 
