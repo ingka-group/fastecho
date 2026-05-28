@@ -34,9 +34,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/ingka-group/fastecho/context"
 	"github.com/ingka-group/fastecho/echozap"
 	"github.com/ingka-group/fastecho/env"
+	"github.com/ingka-group/fastecho/fctx"
 	"github.com/ingka-group/fastecho/otel"
 	"github.com/ingka-group/fastecho/router"
 )
@@ -136,6 +136,15 @@ func (fe *FastEcho) Shutdown(ctx gocontext.Context) error {
 	defer func() { prometheus.DefaultRegisterer = prometheus.NewRegistry() }()
 
 	return fe.server.Echo.Shutdown(ctx)
+}
+
+// BindValidate binds the request body to v and validates it using the
+// registered validator. Use this at the handler boundary.
+func BindValidate(ec echo.Context, v any) error {
+	if err := ec.Bind(v); err != nil {
+		return err
+	}
+	return ec.Validate(v)
 }
 
 func newServer(cfg *Config) (*server, error) {
@@ -292,7 +301,11 @@ func (s *server) middlewares(cfg *Config) {
 	}))
 
 	// Context
-	s.Echo.Use(context.ServiceContextMiddleware(s.Logger, s.Tracer, cfg.ContextProps))
+	var tracer trace.Tracer
+	if s.Tracer != nil {
+		tracer = *s.Tracer
+	}
+	s.Echo.Use(fctx.Middleware(s.Logger, tracer))
 
 	// Gzip
 	s.Echo.Use(middleware.GzipWithConfig(middleware.GzipConfig{
