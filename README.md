@@ -1,78 +1,81 @@
+# Fastecho
+
 Fastecho is a Go library that provides an easily configurable, ready-to-use echo server. It is a wrapper on top of the echo framework and it adds extra functionalities that are often required when setting up web servers.
 
-# How to run
+## Getting started
+
 For specifics, check the detailed features below.
 ```go
-    // load env vars
-    err := core.Envs.SetEnv()
-	if err != nil {
-		log.Fatalf("failed to set environment variables: %s", err)
-	}
+// load env vars
+err := envs.SetEnv()
+if err != nil {
+    log.Fatalf("failed to set environment variables: %s", err)
+}
 
-    // set up a DB and pass it to handler as you like
-	// optionally you can provide a gorm config to customize your gorm instance
-	db, err := fastecho.NewDB(&gorm.Config{
-			Logger: newLogger,
-		})
-	if err != nil {
-		log.Fatalf("failed to connect to the database: %s", err)
-	}
+// set up a DB and pass it to handler as you like
+// optionally you can provide a gorm config to customize your gorm instance
+db, err := fastecho.NewDB(&gorm.Config{
+    Logger: newLogger,
+})
+if err != nil {
+    log.Fatalf("failed to connect to the database: %s", err)
+}
 
-	config := fastecho.Config{
-		ExtraEnvs:           core.Envs,
-		ValidationRegistrar: validator.RegisterValidations,
-		Routes: func(e *echo.Echo, r *router.Router) error {
-			return configureRoutes(e, r, db)
-		},
-		// Properties which would be shared across all the requests in the service via ServiceContext
-		ContextProps: map[string]interface{}{
-			"my_property": "",
-		},
-		Opts: fastecho.Opts{
-			Tracing: fastecho.TracingOpts{
-				Skip:        !core.Envs[consts.OtelTracing].BooleanValue,
-				ServiceName: core.Envs[consts.OtelServiceName].Value,
-			},
-			HealthChecks: fastecho.HealthChecksOpts{
-				Skip: false,
-				DB:   db,
-			},
-		},
-	}
+config := fastecho.Config{
+    ExtraEnvs:           envs,
+    ValidationRegistrar: validator.RegisterValidations,
+    Routes: func(e *echo.Echo, r *router.Router) error {
+        return configureRoutes(e, r, db)
+    },
+    Opts: fastecho.Opts{
+        Tracing: fastecho.TracingOpts{
+            Skip: !envs["OTEL_ENABLED"].BooleanValue,
+        },
+        Metrics: fastecho.MetricsOpts{
+            Skip: !envs["OTEL_ENABLED"].BooleanValue,
+        },
+        HealthChecks: fastecho.HealthChecksOpts{
+            Skip: false,
+            DB:   db,
+        },
+    },
+}
 
-	// Starting service...
-	if err := fastecho.Run(&config); err != nil {
-		log.Fatalf("Service stopped! \n %s", err)
-	}
-```
-
-# Features:
-
-### Logger
-We integrated `go.uber.org/zap`
-
-### Dynamic request context
-You can inject custom properties into the service context via props. This object is of type `any` so you can pass anything into your context to make it accessible in your endpoints.
-
-You could also access request level properties by making use of `RequestProps` in ServiceContext.
-
-```go
-func (h *Handler) GetData(ctx echo.Context) error {
-    sctx := context.GetServiceContext[any](ctx)
-    log := sctx.ZapLogger
-	// props contain service level properties which are shared across all requests
-	props := sctx.Props.(map[string]interface{})
-
-	// requestProps contain request level properties which can be set and accessed from within the handler or middleware
-	sctx.RequestProps["country"] = "NL"
-    ...
+// Starting service...
+if err := fastecho.Run(&config); err != nil {
+    log.Fatalf("Service stopped! \n %s", err)
 }
 ```
 
-### Endpoint router
-The router is providing a couple of preset endpoints for swagger, monitoring and health checks but custom endpoints can also be injected. The router wrapper in the example above can be used to register additional endpoints.
+## Features
 
-Example:
+### Logger
+
+We integrated `go.uber.org/zap`
+
+### Request context
+
+Fastecho injects a request-scoped logger, tracer, and request ID into the request's `context.Context`. Access them via the `fctx` package:
+
+```go
+import "github.com/ingka-group/fastecho/fctx"
+
+func (h *Handler) GetData(ec echo.Context) error {
+    ctx := fctx.From(ec)
+    log := fctx.Logger(ctx)
+    reqID := fctx.RequestID(ctx)
+
+    log.Info("handling request", zap.String("request_id", reqID))
+    // ...
+}
+```
+
+The logger automatically includes `trace_id`, `span_id`, and `request_id` fields when available.
+
+### Routing
+
+The router provides preset endpoints for swagger, monitoring and health checks. Custom endpoints can be injected via the `Routes` function in the config.
+
 ```go
 func configureRoutes(e *echo.Echo, r *router.Router, db *gorm.DB) error {
 	myHandler := NewHandler(db)
@@ -84,8 +87,10 @@ func configureRoutes(e *echo.Echo, r *router.Router, db *gorm.DB) error {
 	return nil
 }
 ```
+
 ### Request validation
-Custom validation can be registered using the provided validator. You need to define a function in which you register custom validations and then add it to the config.
+
+Custom validation can be registered using the provided validator. Define a function in which you register custom validations and add it to the config.
 ```go
 func RegisterValidations(validator *router.Validator) error {
 	validator.Vdt.RegisterStructValidation(daterange.ValidateBasicDateRange(), daterange.BasicDateRange{})
@@ -93,8 +98,10 @@ func RegisterValidations(validator *router.Validator) error {
 	return nil
 }
 ```
-### Middleware injection
-Custom middleware can be injected easily just like routes.
+
+### Middleware
+
+Custom middleware can be injected via the route configuration function.
 ```go
 func configureRoutes(e *echo.Echo, r *router.Router, db *gorm.DB) error {
 	v1 := e.Group("/v1")
@@ -105,65 +112,124 @@ func configureRoutes(e *echo.Echo, r *router.Router, db *gorm.DB) error {
 	return nil
 }
 ```
-### Swagger
-Swagger is baked into the router wrapper. The title and path can be used via these environment variables:
 
-`swaggerUITitle`
-`swaggerJSONPath`
+### Swagger
+
+Swagger is baked into the router wrapper. The title and JSON path can be configured via environment variables:
+
+`SWAGGER_UI_TITLE`
+`SWAGGER_JSON_PATH`
 
 The swagger documentation is configured on the root path suffixed with `/swagger/`.
+
 ### Health probe endpoints
+
 The health endpoints are configured on the root path suffixed with `/health/live` and `/health/ready`.
+
 ### Environment variables
+
 Environment variables are read by default from the environment or from a `.env` file in the root of the directory.
 
-The required ENV vars are:
-* SwaggerUITitle
-* ServiceName
+Fastecho defines the following env vars internally:
 
-Here's an example on how to define env vars and how to load them before starting fastecho:
+| Variable            | Default                 | Notes                         |
+|---------------------|-------------------------|-------------------------------|
+| `HOSTNAME`          | `localhost`             | Server hostname               |
+| `PORT`              | `8080`                  | Server port                   |
+| `SWAGGER_UI_TITLE`  | `FastEcho Service`      | Title for Swagger UI          |
+| `SWAGGER_JSON_PATH` | `/swagger/swagger.json` | Path to swagger.json          |
+| `LOG_LEVEL`         | `dev`                   | One of: `dev`, `test`, `prod` |
+
+You can define additional env vars via `ExtraEnvs` in the config. These are merged with the defaults and loaded automatically when `Run()` or `Initialize()` is called:
 ```go
-// define variables
-var (
-	Envs = env.Map{
-		consts.SwaggerUITitle: {
-			DefaultValue: "FFP Sales forecast connector API",
-		},
-		consts.OtelServiceName: {
-			DefaultValue: "ffp-sales-forecast-connector-v1",
-		},
-		consts.OtelTracing: {
-			DefaultValue: "false",
-			IsBoolean:    true,
-		},
-		// The variables related to the DB are already defined in fastecho
-	}
-)
+var envs = env.Map{
+	"OTEL_ENABLED": {
+		DefaultValue: "false",
+		IsBoolean:    true,
+	},
+}
 
 // load them
-    err := core.Envs.SetEnv()
-	if err != nil {
-		log.Fatalf("failed to set environment variables: %s", err)
-	}
+err := envs.SetEnv()
+if err != nil {
+    log.Fatalf("failed to set environment variables: %s", err)
+}
+
+config := fastecho.Config{
+	ExtraEnvs: envs,
+	// ...
+}
 ```
+
 ### OTEL tracing (optional)
-Tracing is enabled only if the `OTEL_TRACING` env var is set to true.
+
+Tracing is enabled when `Opts.Tracing.Skip` is `false` (the default). The service name and exporter endpoint are configured via standard OpenTelemetry env vars:
+
+| Env Variable                  | Purpose                                                             |
+|-------------------------------|---------------------------------------------------------------------|
+| `OTEL_SERVICE_NAME`           | Sets the service name for traces                                    |
+| `OTEL_RESOURCE_ATTRIBUTES`    | Additional resource attributes (e.g. `deployment.environment=prod`) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | gRPC endpoint for the OTLP exporter                                 |
+
+| Layer                 | How                            | Effort              |
+|-----------------------|--------------------------------|---------------------|
+| HTTP requests         | Automatic via middleware       | Zero config         |
+| Database (GORM)       | `gorm.io/plugin/opentelemetry` | Add plugin yourself |
+| Service functions     | `otel.StartSpan(ctx)`          | 2 lines             |
+| Functions without ctx | `otel.SpanFunc(ctx, name, fn)` | 3 lines             |
+| Outbound HTTP         | `otelhttp.NewTransport(rt)`    | Wrap your client    |
+
+Per-function tracing:
+
+```go
+import "github.com/ingka-group/fastecho/otel"
+
+func (s *Service) Process(ctx context.Context, input Input) error {
+    ctx, span := otel.StartSpan(ctx)
+    defer span.End()
+    // span name auto-discovered: "mypackage.Service.Process"
+    return s.repo.Save(ctx, input)
+}
+```
+
+Tracing a function without context:
+
+```go
+var result T
+otel.SpanFunc(ctx, "heavy-algorithm", func() {
+    result = computeHeavyAlgorithm(data)
+})
+```
+
+For database tracing, add `gorm.io/plugin/opentelemetry` to your project:
+
+```go
+import "gorm.io/plugin/opentelemetry/tracing"
+
+_ = db.Use(tracing.NewPlugin())
+```
+
+**Important:** Always pass context to GORM queries (`db.WithContext(ctx).Find(...)`) so DB spans attach to the request trace.
+
 ### Database (optional)
+
 Fastecho has an optional postgres DB connection baked into it using `gorm`. We are using `goose` for migrations rather than gorm Automigrate. The migrations are expected to be under `db/migrations` in the root of your folder.
 
 ## Plugins
 
-Plugins are a set of handlers and their binded components(validators, middlewares, etc) which can be reused across multiple services using fastecho.
+Plugins are a set of handlers and their bound components (validators, middlewares, etc) which can be reused across multiple services using fastecho.
+
+```go
+fastechoConfig.Use(<pluginConfig>)
+```
 
 ## Access Echo instance
 
-The underlying Echo instance can be accessed by passing the value for `EchoFn` in the config. This would be useful for binding service level middlewares, enabling echo's debug mode or any other Echo features.
-
-Example config:
+The underlying Echo instance can be accessed by passing the value for `EchoFn` in the config. This is useful for binding service level middlewares, enabling echo's debug mode or any other Echo features.
 
 ```go
 config := fastecho.Config{
-	ValidationRegistrar: ValidationRegistrar: func(*router.Validator) error {
+	ValidationRegistrar: func(*router.Validator) error {
 		return nil
 	},
 	Routes: func(e *echo.Echo, r *router.Router) error {
@@ -186,22 +252,18 @@ config := fastecho.Config{
 }
 ```
 
-### Usage
+## Miscellaneous
 
-```go
-fastechoConfig.Use(<pluginConfig>)
-```
-
-# Miscellaneous
 Fastecho is fully compatible with [Echoprobe](https://github.com/ingka-group/echoprobe)
 
-
 ## Contributing
+
 Please read [CONTRIBUTING](./CONTRIBUTING.md) for more details about making a contribution to this open source project and ensure that you follow our [CODE_OF_CONDUCT](./CODE_OF_CONDUCT.md).
 
-
 ## Contact
+
 If you have any other issues or questions regarding this project, feel free to contact one of the [code owners/maintainers](.github/CODEOWNERS) for a more in-depth discussion.
 
 ## Licence
+
 This open source project is licensed under the "Apache-2.0", read the [LICENCE](./LICENCE.md) terms for more details.
