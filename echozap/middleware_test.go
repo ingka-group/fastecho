@@ -33,7 +33,7 @@ func TestZapLoggerMiddleware(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	h := func(c echo.Context) error {
-		return c.String(http.StatusOK, "")
+		return c.String(http.StatusBadRequest, "")
 	}
 
 	obs, logs := observer.New(zap.DebugLevel)
@@ -47,7 +47,7 @@ func TestZapLoggerMiddleware(t *testing.T) {
 	logFields := logs.AllUntimed()[0].ContextMap()
 
 	assert.Equal(t, 1, logs.Len())
-	assert.Equal(t, int64(200), logFields["status"])
+	assert.Equal(t, int64(400), logFields["status"])
 	assert.NotNil(t, logFields["latency"])
 	assert.Equal(t, "GET /something", logFields["request"])
 	assert.NotNil(t, logFields["host"])
@@ -61,7 +61,7 @@ func TestZapLoggerMiddlewareWithConfig(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	h := func(c echo.Context) error {
-		return c.String(http.StatusOK, "")
+		return c.String(http.StatusBadRequest, "")
 	}
 
 	obs, logs := observer.New(zap.DebugLevel)
