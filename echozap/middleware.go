@@ -100,7 +100,7 @@ func ZapLoggerMiddlewareWithConfig(log *zap.Logger, config ZapLoggerMiddlewareCo
 			case n >= 300:
 				log.Info("Redirection", fields...)
 			default:
-				log.Info("Success", fields...)
+				// noop: don't log successful requests
 			}
 
 			return nil
