@@ -15,7 +15,7 @@
 package fastecho
 
 import (
-	gocontext "context"
+	"context"
 	"errors"
 	"net"
 	"sync"
@@ -44,7 +44,7 @@ func TestServeCancelsWorkerContextOnShutdown(t *testing.T) {
 	s := newTestServer()
 	cancelled := make(chan struct{})
 	s.Workers = []Worker{
-		func(ctx gocontext.Context) error {
+		func(ctx context.Context) error {
 			<-ctx.Done()
 			close(cancelled)
 			return ctx.Err()
@@ -52,7 +52,7 @@ func TestServeCancelsWorkerContextOnShutdown(t *testing.T) {
 	}
 
 	p := freePort(t)
-	ctx, cancel := gocontext.WithCancel(gocontext.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 
 	errc := make(chan error, 1)
 	go func() {
@@ -75,7 +75,7 @@ func TestServeWaitsForWorkersOnShutdown(t *testing.T) {
 	s := newTestServer()
 	var drained atomic.Bool
 	s.Workers = []Worker{
-		func(ctx gocontext.Context) error {
+		func(ctx context.Context) error {
 			<-ctx.Done()
 			time.Sleep(100 * time.Millisecond)
 			drained.Store(true)
@@ -84,7 +84,7 @@ func TestServeWaitsForWorkersOnShutdown(t *testing.T) {
 	}
 
 	p := freePort(t)
-	ctx, cancel := gocontext.WithCancel(gocontext.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 
 	errc := make(chan error, 1)
 	go func() {
@@ -102,13 +102,13 @@ func TestServeKeepsRunningWhenWorkerErrorsOrPanics(t *testing.T) {
 	s := newTestServer()
 	healthy := make(chan struct{})
 	s.Workers = []Worker{
-		func(ctx gocontext.Context) error {
+		func(ctx context.Context) error {
 			return errors.New("boom")
 		},
-		func(ctx gocontext.Context) error {
+		func(ctx context.Context) error {
 			panic("kaboom")
 		},
-		func(ctx gocontext.Context) error {
+		func(ctx context.Context) error {
 			close(healthy)
 			<-ctx.Done()
 			return nil
@@ -116,7 +116,7 @@ func TestServeKeepsRunningWhenWorkerErrorsOrPanics(t *testing.T) {
 	}
 
 	p := freePort(t)
-	ctx, cancel := gocontext.WithCancel(gocontext.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 
 	errc := make(chan error, 1)
 	go func() {
@@ -138,7 +138,7 @@ func TestServeKeepsRunningWhenWorkerErrorsOrPanics(t *testing.T) {
 func TestRunWorkerLogsError(t *testing.T) {
 	s, logs := newObserverServer()
 
-	s.runWorker(gocontext.Background(), func(ctx gocontext.Context) error {
+	s.runWorker(context.Background(), func(ctx context.Context) error {
 		return errors.New("boom")
 	})
 
@@ -152,7 +152,7 @@ func TestRunWorkerRecoversPanic(t *testing.T) {
 	s, logs := newObserverServer()
 
 	assert.NotPanics(t, func() {
-		s.runWorker(gocontext.Background(), func(ctx gocontext.Context) error {
+		s.runWorker(context.Background(), func(ctx context.Context) error {
 			panic("kaboom")
 		})
 	})
@@ -163,7 +163,7 @@ func TestRunWorkerRecoversPanic(t *testing.T) {
 func TestRunWorkerSilentOnCleanExit(t *testing.T) {
 	s, logs := newObserverServer()
 
-	s.runWorker(gocontext.Background(), func(ctx gocontext.Context) error {
+	s.runWorker(context.Background(), func(ctx context.Context) error {
 		return nil
 	})
 
@@ -180,7 +180,7 @@ func TestDrainWorkersWaitsForCompletion(t *testing.T) {
 		wg.Done()
 	}()
 
-	ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	s.drainWorkers(ctx, &wg)
@@ -193,7 +193,7 @@ func TestDrainWorkersTimesOut(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1) // never released, simulating a worker ignoring cancellation
 
-	ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
 	s.drainWorkers(ctx, &wg)
