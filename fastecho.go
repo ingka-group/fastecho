@@ -24,6 +24,7 @@ import (
 	"os/signal"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -81,6 +82,7 @@ type server struct {
 	Logger         *zap.Logger
 	Tracer         *trace.Tracer
 	TracerProvider *sdktrace.TracerProvider
+	Workers        []Worker
 }
 
 type FastEcho struct {
@@ -234,6 +236,7 @@ func (s *server) setup(cfg *Config) error {
 	}
 	s.Echo.Validator = vdt
 	s.Router = fastechoRouter
+	s.Workers = cfg.Workers
 
 	return err
 }
@@ -371,6 +374,16 @@ func (s *server) serve(ctx context.Context, host string, port string) error {
 	// Flush buffered logs on the way out
 	defer func() { _ = s.Logger.Sync() }()
 
+	// Start background workers, tracked so shutdown can wait for them to drain.
+	var workers sync.WaitGroup
+	for _, w := range s.Workers {
+		workers.Add(1)
+		go func(w Worker) {
+			defer workers.Done()
+			s.runWorker(ctx, w)
+		}(w)
+	}
+
 	// Start server
 	go func() {
 		serviceURL := fmt.Sprintf("%s:%v", host, port)
@@ -385,7 +398,12 @@ func (s *server) serve(ctx context.Context, host string, port string) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	return s.Echo.Shutdown(shutdownCtx)
+	err := s.Echo.Shutdown(shutdownCtx)
+
+	// Wait for workers to unwind, bounded by the same shutdown budget.
+	s.drainWorkers(shutdownCtx, &workers)
+
+	return err
 }
 
 // isMetricsRoute returns whether the request is to metrics endpoint.
