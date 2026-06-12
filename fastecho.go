@@ -377,11 +377,7 @@ func (s *server) serve(ctx context.Context, host string, port string) error {
 	// Start background workers, tracked so shutdown can wait for them to drain.
 	var workers sync.WaitGroup
 	for _, w := range s.Workers {
-		workers.Add(1)
-		go func(w Worker) {
-			defer workers.Done()
-			s.runWorker(ctx, w)
-		}(w)
+		workers.Go(func() { s.runWorker(ctx, w) })
 	}
 
 	// Start server

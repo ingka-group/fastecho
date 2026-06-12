@@ -47,6 +47,9 @@ func (s *server) runWorker(ctx context.Context, w Worker) {
 // drain in time it logs a warning and returns anyway.
 func (s *server) drainWorkers(ctx context.Context, workers *sync.WaitGroup) {
 	done := make(chan struct{})
+	// If a worker ignores cancellation this goroutine stays blocked on Wait
+	// forever; that is acceptable because drainWorkers only runs once as the
+	// process exits, and a WaitGroup offers no way to abandon the wait.
 	go func() {
 		workers.Wait()
 		close(done)
