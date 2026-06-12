@@ -66,9 +66,5 @@ func New() (*zap.Logger, error) {
 		return nil, err
 	}
 
-	defer func(zapLogger *zap.Logger) {
-		_ = zapLogger.Sync()
-	}(zapLogger)
-
 	return zapLogger, nil
 }

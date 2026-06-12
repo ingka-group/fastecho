@@ -15,14 +15,16 @@
 package fastecho
 
 import (
-	gocontext "context"
+	"context"
 	"errors"
 	"fmt"
 	"maps"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -128,7 +130,7 @@ func (fe *FastEcho) Handler() http.Handler {
 }
 
 // Shutdown cleanly shuts down the server and any tracing providers.
-func (fe *FastEcho) Shutdown(ctx gocontext.Context) error {
+func (fe *FastEcho) Shutdown(ctx context.Context) error {
 	if fe.server.TracerProvider != nil {
 		_ = fe.server.TracerProvider.Shutdown(ctx)
 	}
@@ -342,32 +344,48 @@ func (s *server) middlewares(cfg *Config) {
 
 // run starts the server and listens for interrupt signals to gracefully shut it down.
 func (s *server) run(host string, port string) error {
+	// Catch-all for crashes the runtime can still report: on a runtime-fatal
+	// error (stack overflow, concurrent map writes, out-of-memory, etc.) or an
+	// unrecovered panic, the runtime writes a full stack dump to stderr before
+	// exiting. "all" includes every goroutine, not just the offending one, so a
+	// restarted service always leaves a traceable cause in the logs. Mirrors
+	// GOTRACEBACK=all without relying on the deployment to set it. Note: this
+	// cannot help on SIGKILL / kernel OOM-kill, where the process dies instantly.
+	debug.SetTraceback("all")
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	return s.serve(ctx, host, port)
+}
+
+// serve starts the HTTP server and shuts it down gracefully once ctx is done.
+func (s *server) serve(ctx context.Context, host string, port string) error {
 	// Defer the shutdown of the tracer provider
 	defer func() {
 		if s.TracerProvider != nil {
-			_ = s.TracerProvider.Shutdown(gocontext.Background())
+			_ = s.TracerProvider.Shutdown(context.Background())
 		}
 	}()
+
+	// Flush buffered logs on the way out
+	defer func() { _ = s.Logger.Sync() }()
 
 	// Start server
 	go func() {
 		serviceURL := fmt.Sprintf("%s:%v", host, port)
-		if err := s.Echo.Start(serviceURL); err != nil && err != http.ErrServerClosed {
+		if err := s.Echo.Start(serviceURL); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.Echo.Logger.Panicf("Shutting down the server! \n%s", err)
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shut down the server with a timeout of 10 seconds.
-	// Use a buffered channel to avoid missing signals as recommended for signal.Notify
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt)
-	<-quit
+	// Wait for the shutdown signal, then drain in-flight requests with a 10s timeout.
+	<-ctx.Done()
 
-	ctx, cancel := gocontext.WithTimeout(gocontext.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	err := s.Echo.Shutdown(ctx)
-	return err
+	return s.Echo.Shutdown(shutdownCtx)
 }
 
 // isMetricsRoute returns whether the request is to metrics endpoint.
