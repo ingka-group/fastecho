@@ -16,6 +16,7 @@ package fastecho
 
 import (
 	"context"
+	"errors"
 	"runtime/debug"
 	"sync"
 
@@ -38,7 +39,9 @@ func (s *server) runWorker(ctx context.Context, w Worker) {
 		}
 	}()
 
-	if err := w(ctx); err != nil {
+	// A cancelled context is the documented, expected way for a worker to stop
+	// on shutdown, so it is not an error worth alerting on.
+	if err := w(ctx); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 		s.Logger.Error("worker exited with error", zap.Error(err))
 	}
 }

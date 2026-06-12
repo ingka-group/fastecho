@@ -21,11 +21,13 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -41,6 +43,7 @@ func newObserverServer() (*server, *observer.ObservedLogs) {
 }
 
 func TestServeCancelsWorkerContextOnShutdown(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	s := newTestServer()
 	cancelled := make(chan struct{})
 	s.Workers = []Worker{
@@ -72,6 +75,7 @@ func TestServeCancelsWorkerContextOnShutdown(t *testing.T) {
 }
 
 func TestServeWaitsForWorkersOnShutdown(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	s := newTestServer()
 	var drained atomic.Bool
 	s.Workers = []Worker{
@@ -99,6 +103,7 @@ func TestServeWaitsForWorkersOnShutdown(t *testing.T) {
 }
 
 func TestServeKeepsRunningWhenWorkerErrorsOrPanics(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	s := newTestServer()
 	healthy := make(chan struct{})
 	s.Workers = []Worker{
@@ -135,67 +140,93 @@ func TestServeKeepsRunningWhenWorkerErrorsOrPanics(t *testing.T) {
 	assert.NoError(t, waitForReturn(t, errc))
 }
 
-func TestRunWorkerLogsError(t *testing.T) {
-	s, logs := newObserverServer()
+func TestRunWorker(t *testing.T) {
+	tests := []struct {
+		name        string
+		worker      Worker
+		wantMessage string // empty means no logs expected
+		wantError   string // expected "error" log field, if any
+	}{
+		{
+			name:        "logs error",
+			worker:      func(context.Context) error { return errors.New("boom") },
+			wantMessage: "worker exited with error",
+			wantError:   "boom",
+		},
+		{
+			name:        "recovers panic",
+			worker:      func(context.Context) error { panic("kaboom") },
+			wantMessage: "worker panic recovered",
+		},
+		{
+			name:        "silent on clean exit",
+			worker:      func(context.Context) error { return nil },
+			wantMessage: "",
+		},
+		{
+			name:        "silent on context cancellation",
+			worker:      func(ctx context.Context) error { return context.Canceled },
+			wantMessage: "",
+		},
+	}
 
-	s.runWorker(context.Background(), func(ctx context.Context) error {
-		return errors.New("boom")
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, logs := newObserverServer()
 
-	entries := logs.FilterMessage("worker exited with error").All()
-	require.Len(t, entries, 1)
-	assert.Equal(t, zapcore.ErrorLevel, entries[0].Level)
-	assert.Equal(t, "boom", entries[0].ContextMap()["error"])
-}
+			assert.NotPanics(t, func() {
+				s.runWorker(context.Background(), tt.worker)
+			})
 
-func TestRunWorkerRecoversPanic(t *testing.T) {
-	s, logs := newObserverServer()
+			if tt.wantMessage == "" {
+				assert.Equal(t, 0, logs.Len(), "clean worker exit should not log")
+				return
+			}
 
-	assert.NotPanics(t, func() {
-		s.runWorker(context.Background(), func(ctx context.Context) error {
-			panic("kaboom")
+			entries := logs.FilterMessage(tt.wantMessage).All()
+			require.Len(t, entries, 1)
+			assert.Equal(t, zapcore.ErrorLevel, entries[0].Level)
+			if tt.wantError != "" {
+				assert.Equal(t, tt.wantError, entries[0].ContextMap()["error"])
+			}
 		})
-	})
-
-	assert.Equal(t, 1, logs.FilterMessage("worker panic recovered").Len())
-}
-
-func TestRunWorkerSilentOnCleanExit(t *testing.T) {
-	s, logs := newObserverServer()
-
-	s.runWorker(context.Background(), func(ctx context.Context) error {
-		return nil
-	})
-
-	assert.Equal(t, 0, logs.Len(), "clean worker exit should not log")
+	}
 }
 
 func TestDrainWorkersWaitsForCompletion(t *testing.T) {
-	s, logs := newObserverServer()
+	synctest.Test(t, func(t *testing.T) {
+		s, logs := newObserverServer()
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		time.Sleep(20 * time.Millisecond)
-		wg.Done()
-	}()
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			time.Sleep(20 * time.Millisecond)
+			wg.Done()
+		}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-	s.drainWorkers(ctx, &wg)
-	assert.Equal(t, 0, logs.Len(), "drain that completes in time should not log")
+		s.drainWorkers(ctx, &wg)
+		assert.Equal(t, 0, logs.Len(), "drain that completes in time should not log")
+	})
 }
 
 func TestDrainWorkersTimesOut(t *testing.T) {
-	s, logs := newObserverServer()
+	synctest.Test(t, func(t *testing.T) {
+		s, logs := newObserverServer()
 
-	var wg sync.WaitGroup
-	wg.Add(1) // never released, simulating a worker ignoring cancellation
+		var wg sync.WaitGroup
+		wg.Add(1) // not released until after the timeout, simulating a worker ignoring cancellation
 
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
 
-	s.drainWorkers(ctx, &wg)
-	assert.Equal(t, 1, logs.FilterMessage("workers did not drain within shutdown timeout").Len())
+		s.drainWorkers(ctx, &wg)
+		assert.Equal(t, 1, logs.FilterMessage("workers did not drain within shutdown timeout").Len())
+
+		// Release so drainWorkers' helper goroutine can exit and the bubble drains.
+		wg.Done()
+		synctest.Wait()
+	})
 }
