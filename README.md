@@ -215,6 +215,25 @@ _ = db.Use(tracing.NewPlugin())
 
 Fastecho has an optional postgres DB connection baked into it using `gorm`. We are using `goose` for migrations rather than gorm Automigrate. The migrations are expected to be under `db/migrations` in the root of your folder.
 
+## Background workers
+
+Services often need long-running background processes (e.g. a Pub/Sub listener) that share the server's lifecycle. Register them via `Workers` in the config and fastecho manages their full lifecycle: each worker runs in its own goroutine, receives a context that is cancelled on shutdown, and is waited for while the server drains. The drain shares the 10s graceful-shutdown budget with the HTTP server, so a worker is not guaranteed a full 10s to finish if HTTP draining is slow.
+
+A `Worker` is a plain function that should block until its context is cancelled:
+
+```go
+config := fastecho.Config{
+	Routes: configureRoutes,
+	Workers: []fastecho.Worker{
+		func(ctx context.Context) error {
+			return pubsub.StartListener(ctx, "project", "subscription")
+		},
+	},
+}
+```
+
+A worker that returns an error or panics is logged and recovered; the server and other workers keep running.
+
 ## Plugins
 
 Plugins are a set of handlers and their bound components (validators, middlewares, etc) which can be reused across multiple services using fastecho.

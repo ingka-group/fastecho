@@ -32,6 +32,10 @@ type Config struct {
 	Opts         Opts
 	Plugins      []Plugin
 	EchoFn       func(e *echo.Echo) error
+	// Workers are long-running background processes managed by fastecho's
+	// lifecycle. Each is started in its own goroutine and receives a context
+	// that is cancelled on shutdown.
+	Workers []Worker
 }
 
 // Opts define configuration options for fastecho.
