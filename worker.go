@@ -20,8 +20,9 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"github.com/ingka-group/fastecho/fctx"
 	"go.uber.org/zap"
+
+	"github.com/ingka-group/fastecho/fctx"
 )
 
 // Worker is a long-running background process managed by fastecho's lifecycle.

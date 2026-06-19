@@ -24,7 +24,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/ingka-group/fastecho/fctx"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,6 +33,8 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/ingka-group/fastecho/fctx"
 )
 
 // newObserverServer builds a bare server whose logs are captured for assertions.
