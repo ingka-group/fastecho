@@ -20,6 +20,7 @@ import (
 	"runtime/debug"
 	"sync"
 
+	"github.com/ingka-group/fastecho/fctx"
 	"go.uber.org/zap"
 
 	"github.com/ingka-group/fastecho/fctx"

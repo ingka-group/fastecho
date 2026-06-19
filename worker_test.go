@@ -24,6 +24,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/ingka-group/fastecho/fctx"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
