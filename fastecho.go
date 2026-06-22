@@ -83,6 +83,10 @@ type server struct {
 	Tracer         *trace.Tracer
 	TracerProvider *sdktrace.TracerProvider
 	Workers        []Worker
+
+	workerInitialRestartDelay  time.Duration
+	workerMaxRestartDelay      time.Duration
+	workerStableResetThreshold time.Duration
 }
 
 type FastEcho struct {
@@ -153,7 +157,11 @@ func BindValidate(ec echo.Context, v any) error {
 
 func newServer(cfg *Config) (*server, error) {
 	// Set up the server
-	s := &server{}
+	s := &server{
+		workerInitialRestartDelay:  1 * time.Second,
+		workerMaxRestartDelay:      30 * time.Second,
+		workerStableResetThreshold: 1 * time.Minute,
+	}
 
 	// If no configuration is passed,
 	// the service should still run with default values

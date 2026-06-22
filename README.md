@@ -232,7 +232,7 @@ config := fastecho.Config{
 }
 ```
 
-A worker that returns an error or panics is logged and recovered; the server and other workers keep running.
+Workers are supervised: since a worker should block until its context is cancelled, any early return (error, `nil`, or a recovered panic) is treated as a fault and the worker is restarted with exponential backoff (1s, doubling, capped at 30s; reset after 1m stable). Only a context-cancelled return is a clean stop — no restart, no error log. Other workers and the HTTP server are unaffected.
 
 ## Plugins
 
