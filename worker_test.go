@@ -46,6 +46,7 @@ func newObserverServer() (*server, *observer.ObservedLogs) {
 		workerInitialRestartDelay:  1 * time.Millisecond,
 		workerMaxRestartDelay:      10 * time.Millisecond,
 		workerStableResetThreshold: 1 * time.Second,
+		workerCrashLoopThreshold:   10,
 	}, logs
 }
 
@@ -397,6 +398,37 @@ func TestRunWorkerResetsBackoffAfterStableRun(t *testing.T) {
 		assert.Equal(t, time.Millisecond, entries[0].ContextMap()["backoff"])
 		assert.Equal(t, time.Millisecond, entries[1].ContextMap()["backoff"],
 			"backoff must reset to the initial delay after a stable run")
+
+		cancel()
+		synctest.Wait()
+	})
+}
+
+func TestRunWorkerEscalatesLogAfterCrashLoopThreshold(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s, logs := newObserverServer()
+		s.workerCrashLoopThreshold = 3
+		var calls atomic.Int32
+		healthy := make(chan struct{})
+		ctx, cancel := context.WithCancel(context.Background())
+
+		go s.runWorker(ctx, func(ctx context.Context) error {
+			if calls.Add(1) <= 3 {
+				return errors.New("boom")
+			}
+			close(healthy)
+			<-ctx.Done()
+			return ctx.Err()
+		})
+
+		<-healthy
+		synctest.Wait()
+
+		// Three failures, three restart logs: the first two stay at Warn, the
+		// third reaches the threshold and is escalated to Error for alerting.
+		restarts := logs.FilterMessage("restarting worker")
+		assert.Equal(t, 2, restarts.FilterLevelExact(zapcore.WarnLevel).Len())
+		assert.Equal(t, 1, restarts.FilterLevelExact(zapcore.ErrorLevel).Len())
 
 		cancel()
 		synctest.Wait()

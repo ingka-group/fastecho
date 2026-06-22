@@ -35,6 +35,7 @@ type Worker func(ctx context.Context) error
 // left silently dead until shutdown. It exits only when ctx is cancelled.
 func (s *server) runWorker(ctx context.Context, w Worker) {
 	delay := s.workerInitialRestartDelay
+	failures := 0
 	for {
 		start := time.Now()
 		s.runWorkerOnce(ctx, w)
@@ -44,16 +45,26 @@ func (s *server) runWorker(ctx context.Context, w Worker) {
 
 		if time.Since(start) >= s.workerStableResetThreshold {
 			delay = s.workerInitialRestartDelay
+			failures = 0
 		}
 
+		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return
-		case <-time.After(delay):
+		case <-timer.C:
 		}
 
-		// After the wait, so cancelling during backoff exits without a misleading log.
-		s.Logger.Warn("restarting worker", zap.Duration("backoff", delay))
+		failures++
+		logRestart := s.Logger.Warn
+		if failures >= s.workerCrashLoopThreshold {
+			logRestart = s.Logger.Error
+		}
+		logRestart("restarting worker",
+			zap.Duration("backoff", delay),
+			zap.Int("failures", failures),
+		)
 		delay = min(delay*2, s.workerMaxRestartDelay)
 	}
 }

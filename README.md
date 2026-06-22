@@ -232,7 +232,7 @@ config := fastecho.Config{
 }
 ```
 
-Workers are supervised: since a worker should block until its context is cancelled, any early return (error, `nil`, or a recovered panic) is treated as a fault and the worker is restarted with exponential backoff (1s, doubling, capped at 30s; reset after 1m stable). Only a context-cancelled return is a clean stop — no restart, no error log. Other workers and the HTTP server are unaffected.
+Workers are supervised: since a worker should block until its context is cancelled, any early return (error, `nil`, or a recovered panic) is treated as a fault and the worker is restarted with exponential backoff (1s, doubling, capped at 30s; reset after 1m stable). Restarts are logged at warning level; once a worker has restarted 10 times without a stable run the log escalates to error, so a persistent crash loop can be distinguished from an occasional restart by anything consuming the logs. Only a context-cancelled return is a clean stop — no restart, no error log. Other workers and the HTTP server are unaffected.
 
 ## Plugins
 

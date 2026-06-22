@@ -43,6 +43,7 @@ func newTestServer() *server {
 		workerInitialRestartDelay:  1 * time.Millisecond,
 		workerMaxRestartDelay:      10 * time.Millisecond,
 		workerStableResetThreshold: 1 * time.Second,
+		workerCrashLoopThreshold:   10,
 	}
 }
 

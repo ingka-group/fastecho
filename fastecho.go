@@ -51,6 +51,13 @@ const (
 	swaggerJSONPath = "SWAGGER_JSON_PATH"
 )
 
+const (
+	defaultWorkerInitialRestartDelay  = 1 * time.Second
+	defaultWorkerMaxRestartDelay      = 30 * time.Second
+	defaultWorkerStableResetThreshold = 1 * time.Minute
+	defaultWorkerCrashLoopThreshold   = 10
+)
+
 var (
 	// Environment variables for fastecho to operate.
 	envs = env.Map{
@@ -87,6 +94,7 @@ type server struct {
 	workerInitialRestartDelay  time.Duration
 	workerMaxRestartDelay      time.Duration
 	workerStableResetThreshold time.Duration
+	workerCrashLoopThreshold   int
 }
 
 type FastEcho struct {
@@ -158,9 +166,10 @@ func BindValidate(ec echo.Context, v any) error {
 func newServer(cfg *Config) (*server, error) {
 	// Set up the server
 	s := &server{
-		workerInitialRestartDelay:  1 * time.Second,
-		workerMaxRestartDelay:      30 * time.Second,
-		workerStableResetThreshold: 1 * time.Minute,
+		workerInitialRestartDelay:  defaultWorkerInitialRestartDelay,
+		workerMaxRestartDelay:      defaultWorkerMaxRestartDelay,
+		workerStableResetThreshold: defaultWorkerStableResetThreshold,
+		workerCrashLoopThreshold:   defaultWorkerCrashLoopThreshold,
 	}
 
 	// If no configuration is passed,
