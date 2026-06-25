@@ -21,6 +21,8 @@ import (
 	"sync"
 
 	"go.uber.org/zap"
+
+	"github.com/ingka-group/fastecho/fctx"
 )
 
 // Worker is a long-running background process managed by fastecho's lifecycle.
@@ -30,6 +32,11 @@ type Worker func(ctx context.Context) error
 // runWorker runs a single worker, recovering panics and logging any error so
 // that one worker cannot crash the process or affect the others.
 func (s *server) runWorker(ctx context.Context, w Worker) {
+	ctx = fctx.WithLogger(ctx, s.Logger)
+	if s.Tracer != nil {
+		ctx = fctx.WithTracer(ctx, *s.Tracer)
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			s.Logger.Error("worker panic recovered",

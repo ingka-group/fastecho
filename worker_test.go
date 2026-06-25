@@ -27,10 +27,14 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/embedded"
 	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/ingka-group/fastecho/fctx"
 )
 
 // newObserverServer builds a bare server whose logs are captured for assertions.
@@ -191,6 +195,39 @@ func TestRunWorker(t *testing.T) {
 			}
 		})
 	}
+}
+
+type stubTracer struct{ embedded.Tracer }
+
+func (stubTracer) Start(ctx context.Context, _ string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return ctx, nil
+}
+
+func TestRunWorkerInjectsLogger(t *testing.T) {
+	s, logs := newObserverServer()
+
+	s.runWorker(context.Background(), func(ctx context.Context) error {
+		fctx.Logger(ctx).Info("from worker")
+		return nil
+	})
+
+	require.Equal(t, 1, logs.FilterMessage("from worker").Len(),
+		"worker context should carry the server logger, not the no-op fallback")
+}
+
+func TestRunWorkerInjectsTracer(t *testing.T) {
+	s, _ := newObserverServer()
+	var tracer trace.Tracer = stubTracer{}
+	s.Tracer = &tracer
+
+	var got trace.Tracer
+	s.runWorker(context.Background(), func(ctx context.Context) error {
+		got = fctx.Tracer(ctx)
+		return nil
+	})
+
+	assert.IsType(t, stubTracer{}, got,
+		"worker context should carry the server tracer, not the no-op fallback")
 }
 
 func TestDrainWorkersWaitsForCompletion(t *testing.T) {
