@@ -51,6 +51,13 @@ const (
 	swaggerJSONPath = "SWAGGER_JSON_PATH"
 )
 
+const (
+	defaultWorkerInitialRestartDelay  = 1 * time.Second
+	defaultWorkerMaxRestartDelay      = 30 * time.Second
+	defaultWorkerStableResetThreshold = 1 * time.Minute
+	defaultWorkerCrashLoopThreshold   = 10
+)
+
 var (
 	// Environment variables for fastecho to operate.
 	envs = env.Map{
@@ -83,6 +90,11 @@ type server struct {
 	Tracer         *trace.Tracer
 	TracerProvider *sdktrace.TracerProvider
 	Workers        []Worker
+
+	workerInitialRestartDelay  time.Duration
+	workerMaxRestartDelay      time.Duration
+	workerStableResetThreshold time.Duration
+	workerCrashLoopThreshold   int
 }
 
 type FastEcho struct {
@@ -153,7 +165,12 @@ func BindValidate(ec echo.Context, v any) error {
 
 func newServer(cfg *Config) (*server, error) {
 	// Set up the server
-	s := &server{}
+	s := &server{
+		workerInitialRestartDelay:  defaultWorkerInitialRestartDelay,
+		workerMaxRestartDelay:      defaultWorkerMaxRestartDelay,
+		workerStableResetThreshold: defaultWorkerStableResetThreshold,
+		workerCrashLoopThreshold:   defaultWorkerCrashLoopThreshold,
+	}
 
 	// If no configuration is passed,
 	// the service should still run with default values

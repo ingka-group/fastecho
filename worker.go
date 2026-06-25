@@ -19,6 +19,7 @@ import (
 	"errors"
 	"runtime/debug"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -29,9 +30,48 @@ import (
 // It should block until ctx is cancelled, returning ctx.Err() (or nil) on shutdown.
 type Worker func(ctx context.Context) error
 
-// runWorker runs a single worker, recovering panics and logging any error so
-// that one worker cannot crash the process or affect the others.
+// runWorker supervises a worker for the lifetime of ctx, restarting it with
+// capped exponential backoff on any early return so a crashed worker is never
+// left silently dead until shutdown. It exits only when ctx is cancelled.
 func (s *server) runWorker(ctx context.Context, w Worker) {
+	delay := s.workerInitialRestartDelay
+	failures := 0
+	for {
+		start := time.Now()
+		s.runWorkerOnce(ctx, w)
+		if ctx.Err() != nil {
+			return
+		}
+
+		if time.Since(start) >= s.workerStableResetThreshold {
+			delay = s.workerInitialRestartDelay
+			failures = 0
+		}
+
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+
+		failures++
+		logRestart := s.Logger.Warn
+		if failures >= s.workerCrashLoopThreshold {
+			logRestart = s.Logger.Error
+		}
+		logRestart("restarting worker",
+			zap.Duration("backoff", delay),
+			zap.Int("failures", failures),
+		)
+		delay = min(delay*2, s.workerMaxRestartDelay)
+	}
+}
+
+// runWorkerOnce runs a worker exactly once, recovering panics and logging any
+// error so that one worker cannot crash the process or affect the others.
+func (s *server) runWorkerOnce(ctx context.Context, w Worker) {
 	ctx = fctx.WithLogger(ctx, s.Logger)
 	if s.Tracer != nil {
 		ctx = fctx.WithTracer(ctx, *s.Tracer)
@@ -46,8 +86,7 @@ func (s *server) runWorker(ctx context.Context, w Worker) {
 		}
 	}()
 
-	// A cancelled context is the documented, expected way for a worker to stop
-	// on shutdown, so it is not an error worth alerting on.
+	// A cancelled context is the expected shutdown signal, not an error.
 	if err := w(ctx); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 		s.Logger.Error("worker exited with error", zap.Error(err))
 	}
@@ -57,9 +96,8 @@ func (s *server) runWorker(ctx context.Context, w Worker) {
 // drain in time it logs a warning and returns anyway.
 func (s *server) drainWorkers(ctx context.Context, workers *sync.WaitGroup) {
 	done := make(chan struct{})
-	// If a worker ignores cancellation this goroutine stays blocked on Wait
-	// forever; that is acceptable because drainWorkers only runs once as the
-	// process exits, and a WaitGroup offers no way to abandon the wait.
+	// A worker that ignores cancellation leaks this goroutine, which is
+	// acceptable: drainWorkers runs only as the process exits.
 	go func() {
 		workers.Wait()
 		close(done)

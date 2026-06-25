@@ -39,6 +39,11 @@ func newTestServer() *server {
 	return &server{
 		Echo:   echo.New(),
 		Logger: zap.NewNop(),
+
+		workerInitialRestartDelay:  1 * time.Millisecond,
+		workerMaxRestartDelay:      10 * time.Millisecond,
+		workerStableResetThreshold: 1 * time.Second,
+		workerCrashLoopThreshold:   10,
 	}
 }
 
