@@ -28,7 +28,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -311,7 +310,7 @@ func (s *server) middlewares(cfg *Config) {
 			return isSwaggerRoute(ctx) || isMetricsRoute(ctx) || isHealthRoute(ctx)
 		},
 		Generator: func() string {
-			return uuid.New().String()
+			return fctx.NewRequestID()
 		},
 	}))
 
@@ -346,17 +345,14 @@ func (s *server) middlewares(cfg *Config) {
 		DisablePrintStack: true,
 		LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
 			req := c.Request()
-			spanCtx := trace.SpanContextFromContext(req.Context())
-			s.Logger.Error("panic recovered",
+			fields := append(fctx.Fields(req.Context()),
 				zap.Error(err),
 				zap.String("method", req.Method),
 				zap.String("path", c.Path()),
 				zap.String("uri", req.RequestURI),
-				zap.String("request_id", c.Response().Header().Get(echo.HeaderXRequestID)),
-				zap.String("trace_id", spanCtx.TraceID().String()),
-				zap.String("span_id", spanCtx.SpanID().String()),
 				zap.ByteString("stack", stack),
 			)
+			s.Logger.Error("panic recovered", fields...)
 			return err
 		},
 	}))
