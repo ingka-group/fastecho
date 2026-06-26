@@ -21,6 +21,7 @@ package telemetry
 import (
 	"context"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -226,16 +227,25 @@ func otlpProtocol(signalKey string) string {
 // newResource builds the shared resource: service.name/version from env,
 // service.instance.id generated if unset.
 func newResource(ctx context.Context) (*resource.Resource, error) {
-	return resource.New(ctx,
-		resource.WithFromEnv(),
-		resource.WithAttributes(
-			semconv.ServiceInstanceID(instanceID()),
-		),
-	)
+	// The operator's service.instance.id (via OTEL_RESOURCE_ATTRIBUTES) wins;
+	// generate one only when unset.
+	opts := []resource.Option{resource.WithFromEnv()}
+	if !envHasServiceInstanceID() {
+		opts = append(opts, resource.WithAttributes(
+			semconv.ServiceInstanceID(uuid.New().String()),
+		))
+	}
+	return resource.New(ctx, opts...)
 }
 
-func instanceID() string {
-	// resource.WithFromEnv honors OTEL_RESOURCE_ATTRIBUTES; if the operator set
-	// service.instance.id there it wins on merge. Otherwise generate one.
-	return uuid.New().String()
+// envHasServiceInstanceID reports whether OTEL_RESOURCE_ATTRIBUTES already sets
+// service.instance.id (comma-separated key=value pairs).
+func envHasServiceInstanceID() bool {
+	for _, kv := range strings.Split(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"), ",") {
+		if k, _, ok := strings.Cut(kv, "="); ok &&
+			strings.TrimSpace(k) == string(semconv.ServiceInstanceIDKey) {
+			return true
+		}
+	}
+	return false
 }
