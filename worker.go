@@ -21,6 +21,9 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/ingka-group/fastecho/fctx"
@@ -34,12 +37,12 @@ type Worker func(ctx context.Context) error
 // runWorker supervises a worker for the lifetime of ctx, restarting it with
 // capped exponential backoff on any early return so a crashed worker is never
 // left silently dead until shutdown. It exits only when ctx is cancelled.
-func (s *server) runWorker(ctx context.Context, w Worker) {
+func (s *server) runWorker(ctx context.Context, name string, w Worker) {
 	delay := s.workerInitialRestartDelay
 	failures := 0
 	for {
 		start := time.Now()
-		s.runWorkerOnce(ctx, w)
+		s.runWorkerOnce(ctx, name, w)
 		if ctx.Err() != nil {
 			return
 		}
@@ -63,6 +66,7 @@ func (s *server) runWorker(ctx context.Context, w Worker) {
 			logRestart = s.Logger.Error
 		}
 		logRestart("restarting worker",
+			zap.String("worker", name),
 			zap.Duration("backoff", delay),
 			zap.Int("failures", failures),
 		)
@@ -72,13 +76,24 @@ func (s *server) runWorker(ctx context.Context, w Worker) {
 
 // runWorkerOnce runs a worker exactly once, recovering panics and logging any
 // error so that one worker cannot crash the process or affect the others.
-func (s *server) runWorkerOnce(ctx context.Context, w Worker) {
-	ctx = fctx.WithLogger(ctx, s.Logger)
-	ctx = fctx.WithTracer(ctx, s.Providers.TracerProvider.Tracer(telemetry.ScopeName))
+func (s *server) runWorkerOnce(ctx context.Context, name string, w Worker) {
+	ctx = fctx.WithLogger(ctx, s.Logger.With(zap.String("worker", name)))
+	// Seed a tracer that stamps worker=<name> on every span it starts, so the
+	// worker's spans are filterable by worker - they're roots (no inbound HTTP
+	// request), so this label is how you find all runs of a given worker. (This
+	// is exactly what the ctx-scoped tracer buys us: a per-context tracer the
+	// global can't express.) Providers is always non-nil; noop tracer when skipped.
+	ctx = fctx.WithTracer(ctx, workerTracer{
+		Tracer: s.Providers.TracerProvider.Tracer(telemetry.ScopeName),
+		attrs:  []attribute.KeyValue{attribute.String("worker", name)},
+	})
+	// Fresh request id per run, so each restart's logs/spans correlate to that run.
+	ctx = fctx.WithNewRequestID(ctx)
 
 	defer func() {
 		if r := recover(); r != nil {
-			s.Logger.Error("worker panic recovered",
+			s.recordWorkerFailure(ctx, name, "panic")
+			fctx.Logger(ctx).Error("worker panic recovered",
 				zap.Any("panic", r),
 				zap.ByteString("stack", debug.Stack()),
 			)
@@ -87,8 +102,40 @@ func (s *server) runWorkerOnce(ctx context.Context, w Worker) {
 
 	// A cancelled context is the expected shutdown signal, not an error.
 	if err := w(ctx); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-		s.Logger.Error("worker exited with error", zap.Error(err))
+		s.recordWorkerFailure(ctx, name, "error")
+		fctx.Logger(ctx).Error("worker exited with error", zap.Error(err))
 	}
+}
+
+// recordWorkerFailure increments the worker-failure counter, labelled by worker
+// and kind (panic|error), so failures are alertable per worker, e.g.
+// rate(fastecho_worker_failures_total{worker="..."}[5m]) > 0. Only fastecho can
+// see these (they happen in runWorkerOnce), so it's a framework-owned metric -
+// like otelecho's HTTP metrics, not a consumer helper. Nil-safe: the counter is
+// created on the Run path (serve); direct runWorkerOnce unit tests may leave it unset.
+func (s *server) recordWorkerFailure(ctx context.Context, name, kind string) {
+	if s.workerFailures == nil {
+		return
+	}
+	s.workerFailures.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("worker", name),
+		attribute.String("kind", kind),
+	))
+}
+
+// workerTracer wraps a tracer so every span it starts carries the worker's name
+// as an attribute. Worker spans have no inbound-request parent, so labelling them
+// is how you find all runs of one worker in the trace backend. Note: we do NOT
+// span the whole worker run - workers are long-lived (block until shutdown), so a
+// run-spanning span would stay open for the service lifetime and never export.
+// The worker body spans each unit of work; this tracer just labels those spans.
+type workerTracer struct {
+	trace.Tracer
+	attrs []attribute.KeyValue
+}
+
+func (t workerTracer) Start(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return t.Tracer.Start(ctx, name, append(opts, trace.WithAttributes(t.attrs...))...)
 }
 
 // drainWorkers waits for all workers to return, bounded by ctx. If they do not

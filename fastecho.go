@@ -31,6 +31,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 
 	"github.com/ingka-group/fastecho/echozap"
@@ -84,12 +85,13 @@ type server struct {
 	Router    *router.Router
 	Logger    *zap.Logger
 	Providers *telemetry.Providers
-	Workers   []Worker
+	Workers   map[string]Worker
 
 	workerInitialRestartDelay  time.Duration
 	workerMaxRestartDelay      time.Duration
 	workerStableResetThreshold time.Duration
 	workerCrashLoopThreshold   int
+	workerFailures             metric.Int64Counter
 }
 
 type FastEcho struct {
@@ -381,10 +383,19 @@ func (s *server) serve(ctx context.Context, host string, port string) error {
 	// Flush buffered logs on the way out
 	defer func() { _ = s.Logger.Sync() }()
 
+	// One counter for all workers; labelled per worker/kind at record time.
+	// MeterProvider is always non-nil (noop when metrics are skipped → Add is a
+	// no-op), so this is safe to create unconditionally.
+	s.workerFailures, _ = s.Providers.MeterProvider.Meter(telemetry.ScopeName).Int64Counter(
+		"fastecho.worker.failures",
+		metric.WithDescription("background worker panics and error exits"),
+		metric.WithUnit("{failure}"),
+	)
+
 	// Start background workers, tracked so shutdown can wait for them to drain.
 	var workers sync.WaitGroup
-	for _, w := range s.Workers {
-		workers.Go(func() { s.runWorker(ctx, w) })
+	for name, w := range s.Workers {
+		workers.Go(func() { s.runWorker(ctx, name, w) })
 	}
 
 	// Start server

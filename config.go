@@ -33,9 +33,9 @@ type Config struct {
 	Plugins      []Plugin
 	EchoFn       func(e *echo.Echo) error
 	// Workers are long-running background processes managed by fastecho's
-	// lifecycle. Each is started in its own goroutine and receives a context
-	// that is cancelled on shutdown.
-	Workers []Worker
+	// lifecycle, keyed by name. Each runs in its own goroutine with a context that
+	// is cancelled on shutdown; its logs/spans are tagged worker=<name>.
+	Workers map[string]Worker
 }
 
 // Opts define configuration options for fastecho.
