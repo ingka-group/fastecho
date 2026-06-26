@@ -95,6 +95,17 @@ func (p *Providers) Shutdown(ctx context.Context) error {
 // Init builds the providers from OTEL_* env and returns them with one shutdown,
 // plus an Info snapshot of what it resolved for the caller to log at startup.
 func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
+	// Preserve fastecho's historical gRPC default. autoexport reads
+	// OTEL_EXPORTER_OTLP_PROTOCOL itself to pick the transport for BOTH the trace
+	// and metric OTLP exporters, so setting the env var here is the single lever
+	// that defaults every signal to gRPC - matching the old hardcoded behaviour and
+	// keeping existing :4317 collectors working. Only when the operator expressed no
+	// protocol preference; they opt into the OTel default by setting either var.
+	if os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL") == "" &&
+		os.Getenv("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL") == "" {
+		_ = os.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
+	}
+
 	res, err := newResource(ctx)
 	if err != nil {
 		return nil, Info{}, err

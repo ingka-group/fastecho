@@ -271,14 +271,6 @@ func (s *server) config(cfg *Config) error {
 	}
 	s.Logger = logger
 
-	// fastecho's old code hardcoded gRPC; preserve that as the default when the
-	// operator set no traces protocol (check both vars - autoexport reads the
-	// signal-specific one first). They opt into the OTel default by setting either.
-	if os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL") == "" &&
-		os.Getenv("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL") == "" {
-		_ = os.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
-	}
-
 	providers, info, err := telemetry.Init(context.Background(), telemetry.Config{
 		SetGlobal:   true,
 		SkipTraces:  cfg.Opts.Tracing.Skip,
