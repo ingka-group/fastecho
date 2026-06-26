@@ -107,7 +107,7 @@ func TestAccessLog_5xxCarriesTraceIDAndError(t *testing.T) {
 	e.GET("/x", func(c echo.Context) error { return echo.NewHTTPError(500, "boom") })
 
 	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
+	e.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil))
 
 	require.Equal(t, 1, logs.Len(), "5xx still logged (regression guard)")
 	got := logs.All()[0]
@@ -130,7 +130,7 @@ func TestAccessLog_4xxCarriesRequestID(t *testing.T) {
 	e.GET("/x", func(c echo.Context) error { return c.String(400, "bad") })
 
 	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
+	e.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil))
 
 	require.Equal(t, 1, logs.Len())
 	assert.Equal(t, "Client error", logs.All()[0].Message)
@@ -144,7 +144,7 @@ func TestAccessLog_2xxNotLogged(t *testing.T) {
 	e.GET("/x", func(c echo.Context) error { return c.String(200, "ok") })
 
 	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/x", nil))
+	e.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil))
 
 	assert.Equal(t, 0, logs.Len(), "2xx not logged")
 }
