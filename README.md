@@ -49,6 +49,20 @@ if err := fastecho.Run(&config); err != nil {
 
 ## Features
 
+- [Logger](#logger)
+- [Request context](#request-context)
+- [Routing](#routing)
+- [Request validation](#request-validation)
+- [Middleware](#middleware)
+- [Swagger](#swagger)
+- [Health probe endpoints](#health-probe-endpoints)
+- [Environment variables](#environment-variables)
+- [Observability (OpenTelemetry)](#observability-opentelemetry)
+- [Database](#database-optional)
+- [Background workers](#background-workers)
+- [Plugins](#plugins)
+- [Access Echo instance](#access-echo-instance)
+
 ### Logger
 
 We integrated `go.uber.org/zap`
