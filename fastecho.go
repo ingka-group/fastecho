@@ -349,9 +349,11 @@ func (s *server) middlewares(cfg *Config) {
 	}))
 
 	// 6. Access log, innermost: sees the final status via the request logger.
-	s.Echo.Use(echozap.ZapLoggerMiddlewareWithConfig(s.Logger, echozap.ZapLoggerMiddlewareConfig{
-		Skipper: skip,
-	}))
+	if !cfg.Opts.Logs.Skip {
+		s.Echo.Use(echozap.ZapLoggerMiddlewareWithConfig(s.Logger, echozap.ZapLoggerMiddlewareConfig{
+			Skipper: skip,
+		}))
+	}
 }
 
 // run starts the server and listens for interrupt signals to gracefully shut it down.

@@ -21,6 +21,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/ingka-group/fastecho/fctx"
 )
 
 type (
@@ -75,10 +77,7 @@ func ZapLoggerMiddlewareWithConfig(log *zap.Logger, config ZapLoggerMiddlewareCo
 			req := c.Request()
 			res := c.Response()
 
-			id := req.Header.Get(echo.HeaderXRequestID)
-			if id == "" {
-				id = res.Header().Get(echo.HeaderXRequestID)
-			}
+			logger := log.With(fctx.Fields(c.Request().Context())...)
 
 			fields := []zapcore.Field{
 				zap.String("remote_ip", c.RealIP()),
@@ -88,17 +87,16 @@ func ZapLoggerMiddlewareWithConfig(log *zap.Logger, config ZapLoggerMiddlewareCo
 				zap.Int("status", res.Status),
 				zap.Int64("size", res.Size),
 				zap.String("user_agent", req.UserAgent()),
-				zap.String("request_id", id),
 			}
 
 			n := res.Status
 			switch {
 			case n >= 500:
-				log.With(zap.Error(err)).Error("Server error", fields...)
+				logger.With(zap.Error(err)).Error("Server error", fields...)
 			case n >= 400:
-				log.With(zap.Error(err)).Warn("Client error", fields...)
+				logger.With(zap.Error(err)).Warn("Client error", fields...)
 			case n >= 300:
-				log.Info("Redirection", fields...)
+				logger.Info("Redirection", fields...)
 			default:
 				// noop: don't log successful requests
 			}
