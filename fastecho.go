@@ -312,46 +312,7 @@ func (s *server) middlewares(cfg *Config) {
 		return isSwaggerRoute(c) || isMetricsRoute(c) || isHealthRoute(c)
 	}
 
-	// Register otelecho only when a signal is on, honouring the Skip toggles
-	// (not a nil check).
-	if !cfg.Opts.Tracing.Skip || !cfg.Opts.Metrics.Skip {
-		s.Echo.Use(otelecho.Middleware(
-			otelServiceName(),
-			otelecho.WithTracerProvider(s.Providers.TracerProvider),
-			otelecho.WithMeterProvider(s.Providers.MeterProvider),
-			otelecho.WithSkipper(skip),
-		))
-	}
-
-	// Request ID
-	s.Echo.Use(middleware.RequestIDWithConfig(middleware.RequestIDConfig{
-		Skipper: func(ctx echo.Context) bool {
-			return isSwaggerRoute(ctx) || isMetricsRoute(ctx) || isHealthRoute(ctx)
-		},
-		Generator: func() string {
-			return fctx.NewRequestID()
-		},
-	}))
-
-	// Zap Logger
-	s.Echo.Use(echozap.ZapLoggerMiddlewareWithConfig(s.Logger, echozap.ZapLoggerMiddlewareConfig{
-		Skipper: func(ctx echo.Context) bool {
-			return isSwaggerRoute(ctx) || isMetricsRoute(ctx) || isHealthRoute(ctx)
-		},
-	}))
-
-	// Context
-	tracer := s.Providers.TracerProvider.Tracer(telemetry.ScopeName)
-	s.Echo.Use(fctx.Middleware(s.Logger, tracer))
-
-	// Gzip
-	s.Echo.Use(middleware.GzipWithConfig(middleware.GzipConfig{
-		Skipper: func(ctx echo.Context) bool {
-			return isSwaggerRoute(ctx) || isMetricsRoute(ctx)
-		},
-	}))
-
-	// Recover
+	// 1. Recover, outermost: catches panics in any middleware below.
 	s.Echo.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{
 		DisablePrintStack: true,
 		LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
@@ -366,6 +327,37 @@ func (s *server) middlewares(cfg *Config) {
 			s.Logger.Error("panic recovered", fields...)
 			return err
 		},
+	}))
+
+	// 2. Request ID, before trace: so it can be set as a span attribute.
+	s.Echo.Use(middleware.RequestIDWithConfig(middleware.RequestIDConfig{
+		Skipper:   skip,
+		Generator: fctx.NewRequestID,
+	}))
+
+	// 3. otelecho trace + metrics, registered only when a signal is on.
+	if !cfg.Opts.Tracing.Skip || !cfg.Opts.Metrics.Skip {
+		s.Echo.Use(otelecho.Middleware(
+			otelServiceName(),
+			otelecho.WithTracerProvider(s.Providers.TracerProvider),
+			otelecho.WithMeterProvider(s.Providers.MeterProvider),
+			otelecho.WithSkipper(skip),
+		))
+	}
+
+	// 4. fctx: enriches the request logger + sets fastecho.request_id on the span.
+	// Providers is always non-nil; a noop tracer when tracing is skipped.
+	tracer := s.Providers.TracerProvider.Tracer(telemetry.ScopeName)
+	s.Echo.Use(fctx.Middleware(s.Logger, tracer))
+
+	// 5. Gzip.
+	s.Echo.Use(middleware.GzipWithConfig(middleware.GzipConfig{
+		Skipper: func(c echo.Context) bool { return isSwaggerRoute(c) || isMetricsRoute(c) },
+	}))
+
+	// 6. Access log, innermost: sees the final status via the request logger.
+	s.Echo.Use(echozap.ZapLoggerMiddlewareWithConfig(s.Logger, echozap.ZapLoggerMiddlewareConfig{
+		Skipper: skip,
 	}))
 }
 
