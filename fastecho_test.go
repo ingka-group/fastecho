@@ -19,6 +19,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strconv"
 	"sync"
@@ -27,13 +28,19 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/ingka-group/fastecho/fctx"
+	"github.com/ingka-group/fastecho/router"
 	"github.com/ingka-group/fastecho/telemetry"
 )
 
@@ -241,4 +248,118 @@ func (r *recordingSyncer) didSync() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.synced
+}
+
+func TestInitialize_HasProvidersAndShutdownIsSafe(t *testing.T) {
+	t.Setenv("OTEL_TRACES_EXPORTER", "none")
+	fe, err := Initialize(&Config{})
+	require.NoError(t, err)
+	require.NotNil(t, fe.server.Providers)
+	require.NoError(t, fe.Shutdown(gocontext.Background()))
+}
+
+func TestMetricsEndpointStillServed(t *testing.T) {
+	t.Setenv("OTEL_TRACES_EXPORTER", "none")
+	t.Setenv("OTEL_METRICS_EXPORTER", "prometheus")
+
+	fe, err := Initialize(&Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = fe.Shutdown(gocontext.Background()) })
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	fe.Handler().ServeHTTP(rec, req)
+	assert.Equal(t, 200, rec.Code)
+
+	// A scraper negotiating OpenMetrics must get OpenMetrics back: that is the
+	// exposition format that carries exemplars (trace_id/span_id). Without
+	// HandlerOpts.EnableOpenMetrics, promhttp ignores the Accept header and returns
+	// plain text, dropping exemplars - so this guards that the flag stays set.
+	om := httptest.NewRecorder()
+	omReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	omReq.Header.Set("Accept", "application/openmetrics-text")
+	fe.Handler().ServeHTTP(om, omReq)
+	assert.Equal(t, 200, om.Code)
+	assert.Contains(t, om.Header().Get("Content-Type"), "application/openmetrics-text")
+}
+
+func TestMetricsEndpointNotMountedWithoutPrometheus(t *testing.T) {
+	t.Setenv("OTEL_TRACES_EXPORTER", "none")
+	t.Setenv("OTEL_METRICS_EXPORTER", "none") // not prometheus => nil gatherer => no /metrics
+
+	fe, err := Initialize(&Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = fe.Shutdown(gocontext.Background()) })
+
+	rec := httptest.NewRecorder()
+	fe.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	assert.Equal(t, http.StatusNotFound, rec.Code, "/metrics is not mounted when the exporter isn't prometheus")
+}
+
+// TestOtelecho_RecordsRoutePattern exercises otelecho directly with a recorder.
+func TestOtelecho_RecordsRoutePattern(t *testing.T) {
+	rec := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
+	t.Cleanup(func() { _ = tp.Shutdown(gocontext.Background()) })
+
+	e := echo.New()
+	e.Use(otelecho.Middleware("test", otelecho.WithTracerProvider(tp)))
+	e.GET("/widgets/:id", func(c echo.Context) error { return c.String(200, "ok") })
+
+	r := httptest.NewRecorder()
+	e.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/widgets/42", nil))
+
+	spans := rec.Ended()
+	require.Len(t, spans, 1)
+	attrs := map[string]string{}
+	for _, kv := range spans[0].Attributes() {
+		attrs[string(kv.Key)] = kv.Value.String()
+	}
+	assert.Equal(t, "/widgets/:id", attrs["http.route"])
+	assert.Equal(t, "GET", attrs["http.request.method"])
+}
+
+func TestRecover_PanicReturns500(t *testing.T) {
+	t.Setenv("OTEL_TRACES_EXPORTER", "none")
+	t.Setenv("OTEL_METRICS_EXPORTER", "none")
+
+	fe, err := Initialize(&Config{
+		Routes: func(e *echo.Echo, r *router.Router) error {
+			e.GET("/boom", func(c echo.Context) error { panic("kaboom") })
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = fe.Shutdown(gocontext.Background()) })
+
+	rec := httptest.NewRecorder()
+	fe.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/boom", nil))
+
+	// recover turns the panic into a 500 instead of crashing the server.
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+}
+
+func TestServerSpan_CarriesRequestID(t *testing.T) {
+	rec := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
+	t.Cleanup(func() { _ = tp.Shutdown(gocontext.Background()) })
+
+	e := echo.New()
+	e.Use(middleware.RequestIDWithConfig(middleware.RequestIDConfig{Generator: fctx.NewRequestID}))
+	e.Use(otelecho.Middleware("test", otelecho.WithTracerProvider(tp)))
+	e.Use(fctx.Middleware(zap.NewNop(), tp.Tracer("t")))
+	e.GET("/x", func(c echo.Context) error { return c.String(200, "ok") })
+
+	r := httptest.NewRecorder()
+	e.ServeHTTP(r, httptest.NewRequest(http.MethodGet, "/x", nil))
+
+	spans := rec.Ended()
+	require.Len(t, spans, 1)
+	var reqID string
+	for _, kv := range spans[0].Attributes() {
+		if string(kv.Key) == "fastecho.request_id" {
+			reqID = kv.Value.AsString()
+		}
+	}
+	assert.NotEmpty(t, reqID, "server span carries fastecho.request_id")
 }
