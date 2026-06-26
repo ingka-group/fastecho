@@ -16,6 +16,7 @@ package telemetry_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -79,6 +80,26 @@ func TestInit_MeterProviderUsableWhenSkipped(t *testing.T) {
 	p := initForTest(t, telemetry.Config{SetGlobal: false, SkipMetrics: true})
 	_, err := p.MeterProvider.Meter("probe").Int64Counter("probe.count")
 	require.NoError(t, err) // noop provider, but must not panic/error
+}
+
+func TestInit_StartsRuntimeMetrics(t *testing.T) {
+	t.Setenv("OTEL_METRICS_EXPORTER", "prometheus")
+	p := initForTest(t, telemetry.Config{SetGlobal: false})
+
+	// Gather from the prometheus registry that already backs /metrics - no extra
+	// test seam. The go.* runtime metrics surface as go_* families there.
+	require.NotNil(t, p.PrometheusGatherer)
+	mfs, err := p.PrometheusGatherer.Gather()
+	require.NoError(t, err)
+
+	var found bool
+	for _, mf := range mfs {
+		if strings.HasPrefix(mf.GetName(), "go_") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected go_* runtime metrics via the prometheus gatherer")
 }
 
 // This test drives Shutdown directly, so it does its own Init. (initForTest

@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
+	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	promexporter "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
@@ -144,6 +145,10 @@ func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
 		)
 		p.MeterProvider = mp
 		closers = append(closers, mp.Shutdown)
+
+		if err := runtime.Start(runtime.WithMeterProvider(mp)); err != nil {
+			return nil, Info{}, err
+		}
 	}
 
 	if cfg.SetGlobal {

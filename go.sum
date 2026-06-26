@@ -113,6 +113,8 @@ go.opentelemetry.io/contrib/exporters/autoexport v0.69.0 h1:R3jsCoTIzv0BiYNhW0ax
 go.opentelemetry.io/contrib/exporters/autoexport v0.69.0/go.mod h1:m07gqyr2QhQxKOKb5vqKCCBtLH3uqlNYR7PU/FISXVU=
 go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.69.0 h1:p2oor9jp8aT5uqVuN9p0GCntXn5VX8qXdOH098hgLu4=
 go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.69.0/go.mod h1:NOiuETZRg7aNSNFPWqf4dAszhyFMVdKYXW4V0/DtbNA=
+go.opentelemetry.io/contrib/instrumentation/runtime v0.69.0 h1:MtkMsuRo3zEXTTMALfyrszwCDZTkB6wolyPjbwFAdq0=
+go.opentelemetry.io/contrib/instrumentation/runtime v0.69.0/go.mod h1:FYTxnpsm+UPD0erZNq20GvnM8T2YQHiHtT2vokdpoac=
 go.opentelemetry.io/contrib/propagators/b3 v1.44.0 h1:1IFH4oFKK8KupzIelCl3u+bkxpGRps1oWRjQI2+TTWs=
 go.opentelemetry.io/contrib/propagators/b3 v1.44.0/go.mod h1:JqWFXsc7VDaqIyubFhEd2cPHqsrzqP0Lvn783SUwyro=
 go.opentelemetry.io/otel v1.44.0 h1:JjwHmHpA4iZ3wBxluu2fbbE7j4kqlE8jXyAyPXH7HqU=
