@@ -39,7 +39,7 @@ import (
 	"github.com/ingka-group/fastecho/echozap"
 	"github.com/ingka-group/fastecho/env"
 	"github.com/ingka-group/fastecho/fctx"
-	"github.com/ingka-group/fastecho/otel"
+	"github.com/ingka-group/fastecho/telemetry"
 	"github.com/ingka-group/fastecho/router"
 )
 
@@ -297,8 +297,8 @@ func (s *server) config(cfg *Config) error {
 // middlewares configures all the middlewares for Echo.
 func (s *server) middlewares(cfg *Config) {
 	if !cfg.Opts.Tracing.Skip {
-		s.Echo.Use(otel.Middleware(
-			otel.WithSkipper(func(ctx echo.Context) bool {
+		s.Echo.Use(telemetry.Middleware(
+			telemetry.WithSkipper(func(ctx echo.Context) bool {
 				return isSwaggerRoute(ctx) || isMetricsRoute(ctx) || isHealthRoute(ctx)
 			}),
 		))

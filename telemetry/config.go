@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package otel
+package telemetry
 
 import (
 	"github.com/labstack/echo/v4/middleware"

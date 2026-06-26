@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package otel_test
+package telemetry_test
 
 import (
 	"context"
@@ -26,7 +26,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	otelTrace "go.opentelemetry.io/otel/trace"
 
-	feotel "github.com/ingka-group/fastecho/otel"
+	"github.com/ingka-group/fastecho/telemetry"
 )
 
 func setGlobalTPForSpan(tp otelTrace.TracerProvider) otelTrace.TracerProvider {
@@ -53,7 +53,7 @@ func TestStartSpan(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, span := feotel.StartSpan(tc.ctx)
+			ctx, span := telemetry.StartSpan(tc.ctx)
 			defer span.End()
 
 			require.NotNil(t, span)
@@ -71,7 +71,7 @@ func TestStartSpan_AutoDiscoversCallerName(t *testing.T) {
 	prev := setGlobalTPForSpan(tp)
 	defer setGlobalTPForSpan(prev)
 
-	_, span := feotel.StartSpan(context.Background())
+	_, span := telemetry.StartSpan(context.Background())
 	span.End()
 
 	spans := exp.GetSpans()
@@ -90,7 +90,7 @@ func TestStartSpan_ChildAttachesToParent(t *testing.T) {
 	tracer := tp.Tracer("test")
 	ctx, parent := tracer.Start(context.Background(), "parent")
 
-	_, child := feotel.StartSpan(ctx)
+	_, child := telemetry.StartSpan(ctx)
 	child.End()
 	parent.End()
 
@@ -106,7 +106,7 @@ func TestStartSpan_ChildAttachesToParent(t *testing.T) {
 }
 
 func TestStartSpan_NoopWhenNoGlobalTracer(t *testing.T) {
-	ctx, span := feotel.StartSpan(context.Background())
+	ctx, span := telemetry.StartSpan(context.Background())
 	defer span.End()
 
 	require.NotNil(t, ctx)
@@ -123,7 +123,7 @@ func TestSpanFunc(t *testing.T) {
 	defer setGlobalTPForSpan(prev)
 
 	var called bool
-	feotel.SpanFunc(context.Background(), "heavy-algorithm", func() {
+	telemetry.SpanFunc(context.Background(), "heavy-algorithm", func() {
 		called = true
 	})
 
@@ -145,7 +145,7 @@ func TestSpanFunc_ChildAttachesToParent(t *testing.T) {
 	tracer := tp.Tracer("test")
 	ctx, parent := tracer.Start(context.Background(), "parent")
 
-	feotel.SpanFunc(ctx, "child-work", func() {})
+	telemetry.SpanFunc(ctx, "child-work", func() {})
 	parent.End()
 
 	spans := exp.GetSpans()
@@ -157,7 +157,7 @@ func TestSpanFunc_ChildAttachesToParent(t *testing.T) {
 func TestSpanFunc_NoopWhenNoGlobalTracer(t *testing.T) {
 	var called bool
 	assert.NotPanics(t, func() {
-		feotel.SpanFunc(context.Background(), "noop-work", func() {
+		telemetry.SpanFunc(context.Background(), "noop-work", func() {
 			called = true
 		})
 	})
@@ -173,7 +173,7 @@ func TestSpanFunc_RecordsPanicAndReraises(t *testing.T) {
 	defer setGlobalTPForSpan(prev)
 
 	assert.PanicsWithValue(t, "something broke", func() {
-		feotel.SpanFunc(context.Background(), "panicking-work", func() {
+		telemetry.SpanFunc(context.Background(), "panicking-work", func() {
 			panic("something broke")
 		})
 	})
