@@ -172,44 +172,44 @@ Behaviour is configured by standard `OTEL_*` env vars (read by the OTel SDK and
 
 #### Env vars
 
-| Variable | Default | Effect |
-|---|---|---|
-| `OTEL_SERVICE_NAME` | (unset) | `service.name` on every span/metric |
-| `OTEL_SERVICE_VERSION` | (unset) | `service.version` (optional) |
-| `OTEL_RESOURCE_ATTRIBUTES` | (unset) | Extra resource attrs, e.g. `deployment.environment=prod` |
-| `OTEL_TRACES_EXPORTER` | `otlp` | `otlp` \| `console` \| `none` |
-| `OTEL_METRICS_EXPORTER` | `prometheus` | `prometheus` (served at `/metrics`) \| `otlp` (push) \| `none` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | Collector endpoint (gRPC port, matching the default protocol) |
-| `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` (fastecho default) | Set `http/protobuf` for a `:4318` collector |
-| `OTEL_TRACES_SAMPLER` | `parentbased_always_on` | e.g. `parentbased_traceidratio` |
-| `OTEL_TRACES_SAMPLER_ARG` | `1.0` | Sample ratio for the ratio samplers |
-| `OTEL_METRICS_EXEMPLAR_FILTER` | `trace_based` | Which measurements carry trace exemplars |
+| Variable                       | Default                   | Effect                                                         |
+|--------------------------------|---------------------------|----------------------------------------------------------------|
+| `OTEL_SERVICE_NAME`            | (unset)                   | `service.name` on every span/metric                            |
+| `OTEL_SERVICE_VERSION`         | (unset)                   | `service.version` (optional)                                   |
+| `OTEL_RESOURCE_ATTRIBUTES`     | (unset)                   | Extra resource attrs, e.g. `deployment.environment=prod`       |
+| `OTEL_TRACES_EXPORTER`         | `otlp`                    | `otlp` \| `console` \| `none`                                  |
+| `OTEL_METRICS_EXPORTER`        | `prometheus`              | `prometheus` (served at `/metrics`) \| `otlp` (push) \| `none` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`  | `localhost:4317`          | Collector endpoint (gRPC port, matching the default protocol)  |
+| `OTEL_EXPORTER_OTLP_PROTOCOL`  | `grpc` (fastecho default) | Set `http/protobuf` for a `:4318` collector                    |
+| `OTEL_TRACES_SAMPLER`          | `parentbased_always_on`   | e.g. `parentbased_traceidratio`                                |
+| `OTEL_TRACES_SAMPLER_ARG`      | `1.0`                     | Sample ratio for the ratio samplers                            |
+| `OTEL_METRICS_EXEMPLAR_FILTER` | `trace_based`             | Which measurements carry trace exemplars                       |
 
 > `/metrics` stays on the service's main port (default `prometheus` exporter).
 > The metric is `http_server_request_duration_seconds_*` (was `echo_http_*`).
 
 #### Code toggles (`fastecho.Opts`)
 
-| Field | Effect |
-|---|---|
-| `Opts.Tracing.Skip` | Disable tracing |
-| `Opts.Metrics.Skip` | Disable metrics (and `/metrics`) |
-| `Opts.Logs.Skip` | Disable the access-log middleware |
+| Field               | Effect                            |
+|---------------------|-----------------------------------|
+| `Opts.Tracing.Skip` | Disable tracing                   |
+| `Opts.Metrics.Skip` | Disable metrics (and `/metrics`)  |
+| `Opts.Logs.Skip`    | Disable the access-log middleware |
 
 There are intentionally **no** code fields mirroring an env var (sampler ratio,
 exporter, endpoint): one source of truth per setting.
 
 #### Libraries
 
-| Concern | Package |
-|---|---|
-| SDK + API | [`go.opentelemetry.io/otel`](https://pkg.go.dev/go.opentelemetry.io/otel) |
+| Concern                     | Package                                                                                                        |
+|-----------------------------|----------------------------------------------------------------------------------------------------------------|
+| SDK + API                   | [`go.opentelemetry.io/otel`](https://pkg.go.dev/go.opentelemetry.io/otel)                                      |
 | HTTP server spans + metrics | [`otelecho`](https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho) |
-| Env-driven exporters | [`autoexport`](https://pkg.go.dev/go.opentelemetry.io/contrib/exporters/autoexport) |
-| Go runtime metrics | [`instrumentation/runtime`](https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/runtime) |
-| Outbound client transport | [`otelhttp`](https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp) |
-| `/metrics` exporter | [`exporters/prometheus`](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/prometheus) |
-| Semantic conventions | [`semconv/v1.41.0`](https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.41.0) |
+| Env-driven exporters        | [`autoexport`](https://pkg.go.dev/go.opentelemetry.io/contrib/exporters/autoexport)                            |
+| Go runtime metrics          | [`instrumentation/runtime`](https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/runtime)            |
+| Outbound client transport   | [`otelhttp`](https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp)                 |
+| `/metrics` exporter         | [`exporters/prometheus`](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/prometheus)                     |
+| Semantic conventions        | [`semconv/v1.41.0`](https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.41.0)                               |
 
 Full env reference: [OpenTelemetry SDK environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/).
 
@@ -276,12 +276,12 @@ Existing consumers must check the following:
 - **Hand-rolled trace middleware removed:** drop any direct registration of `otel.Middleware`, `otel.WithSkipper`, or `otel.WithTracerProvider` — fastecho wires `otelecho` itself.
 - **Metric renames:**
 
-  | Old name | New name |
-  |---|---|
-  | `echo_http_requests_total` | derive from `http_server_request_duration_seconds_count` |
-  | `echo_http_request_duration_seconds_bucket` | `http_server_request_duration_seconds_bucket` |
-  | label `code` | `http_response_status_code` |
-  | label `url` | `http_route` (rename only — value was already the route pattern) |
+  | Old name                                    | New name                                                         |
+  |---------------------------------------------|------------------------------------------------------------------|
+  | `echo_http_requests_total`                  | derive from `http_server_request_duration_seconds_count`         |
+  | `echo_http_request_duration_seconds_bucket` | `http_server_request_duration_seconds_bucket`                    |
+  | label `code`                                | `http_response_status_code`                                      |
+  | label `url`                                 | `http_route` (rename only — value was already the route pattern) |
 
 - **Span attribute renames:** `http.*` / `net.*` → stable semconv (`http.request.method`, `url.path`, `http.route`, `http.response.status_code`). `fastecho.request_id` is also set on the server span.
 - **`/metrics` survives — no action needed:** fastecho defaults `OTEL_METRICS_EXPORTER` to `prometheus` so an existing app that sets nothing still gets `/metrics` on the main port. Only the metric names change (see above).
