@@ -167,6 +167,10 @@ fastecho emits **traces + metrics** through OpenTelemetry from one shared
 resource and one shutdown. Logs stay on zap (stdout JSON) and carry
 `trace_id`/`span_id`/`request_id` so they correlate without a log exporter.
 
+New here? The [observability guide](docs/observability.md) explains how traces,
+metrics, and logs tie together (correlation IDs, pull vs push, exemplars) and
+what happens under the hood.
+
 Behaviour is configured by standard `OTEL_*` env vars (read by the OTel SDK and
 `autoexport`); `fastecho.Opts` only carries on/off toggles.
 
@@ -212,10 +216,6 @@ exporter, endpoint): one source of truth per setting.
 | Semantic conventions        | [`semconv/v1.41.0`](https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.41.0)                               |
 
 Full env reference: [OpenTelemetry SDK environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/).
-
-New here? The [observability guide](docs/observability.md) explains how traces,
-metrics, and logs tie together (correlation IDs, pull vs push, exemplars) and
-what happens under the hood.
 
 #### Instrumentation coverage
 
