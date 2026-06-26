@@ -20,9 +20,10 @@ import (
 	"runtime"
 	"strings"
 
-	otelSDK "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/ingka-group/fastecho/fctx"
 )
 
 // StartSpan starts a child span named after the calling function and returns
@@ -31,15 +32,14 @@ import (
 // The span name is auto-discovered from the caller using runtime.Caller,
 // formatted as package.Type.Method (e.g. "forecast.Service.Recompute").
 //
-// Uses the global TracerProvider. If tracing is not configured, returns a
-// no-op span (safe to defer .End()).
+// Uses the tracer from fctx.Tracer(ctx); falls back to a no-op tracer if none is set.
 //
 // For custom span names, use the standard OTel API directly:
 //
 //	tracer := otel.Tracer("my-scope")
 //	ctx, span := tracer.Start(ctx, "custom-name")
 func StartSpan(ctx context.Context, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return otelSDK.Tracer(ScopeName).Start(ctx, callerName(1), opts...)
+	return fctx.Tracer(ctx).Start(ctx, callerName(1), opts...)
 }
 
 // SpanFunc wraps a function call in a span with the given name. The span starts
@@ -47,14 +47,14 @@ func StartSpan(ctx context.Context, opts ...trace.SpanStartOption) (context.Cont
 // that don't accept context.Context:
 //
 //	var result T
-//	otel.SpanFunc(ctx, "heavy-algorithm", func() {
+//	telemetry.SpanFunc(ctx, "heavy-algorithm", func() {
 //	    result = computeHeavyAlgorithm(data)
 //	})
 //
 // If fn panics, the panic is recorded on the span and re-raised.
 // If tracing is not configured, fn is still called (no-op span).
 func SpanFunc(ctx context.Context, name string, fn func()) {
-	_, span := otelSDK.Tracer(ScopeName).Start(ctx, name)
+	_, span := fctx.Tracer(ctx).Start(ctx, name)
 	defer span.End()
 	defer func() {
 		if r := recover(); r != nil {

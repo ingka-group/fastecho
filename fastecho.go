@@ -39,8 +39,8 @@ import (
 	"github.com/ingka-group/fastecho/echozap"
 	"github.com/ingka-group/fastecho/env"
 	"github.com/ingka-group/fastecho/fctx"
-	"github.com/ingka-group/fastecho/telemetry"
 	"github.com/ingka-group/fastecho/router"
+	"github.com/ingka-group/fastecho/telemetry"
 )
 
 const (

@@ -20,34 +20,26 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	otelSDK "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	otelTrace "go.opentelemetry.io/otel/trace"
 
+	"github.com/ingka-group/fastecho/fctx"
 	"github.com/ingka-group/fastecho/telemetry"
 )
-
-func setGlobalTPForSpan(tp otelTrace.TracerProvider) otelTrace.TracerProvider {
-	prev := otelSDK.GetTracerProvider()
-	otelSDK.SetTracerProvider(tp)
-	return prev
-}
 
 func TestStartSpan(t *testing.T) {
 	exp := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
 	defer func() { _ = tp.Shutdown(context.Background()) }()
 
-	prev := setGlobalTPForSpan(tp)
-	defer setGlobalTPForSpan(prev)
+	ctx := fctx.WithTracer(t.Context(), tp.Tracer("test"))
 
 	tests := map[string]struct {
 		ctx context.Context
 	}{
-		"creates span with global tracer": {
-			ctx: context.Background(),
+		"creates span with context tracer": {
+			ctx: ctx,
 		},
 	}
 
@@ -68,10 +60,9 @@ func TestStartSpan_AutoDiscoversCallerName(t *testing.T) {
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
 	defer func() { _ = tp.Shutdown(context.Background()) }()
 
-	prev := setGlobalTPForSpan(tp)
-	defer setGlobalTPForSpan(prev)
+	ctx := fctx.WithTracer(t.Context(), tp.Tracer("test"))
 
-	_, span := telemetry.StartSpan(context.Background())
+	_, span := telemetry.StartSpan(ctx)
 	span.End()
 
 	spans := exp.GetSpans()
@@ -84,11 +75,10 @@ func TestStartSpan_ChildAttachesToParent(t *testing.T) {
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
 	defer func() { _ = tp.Shutdown(context.Background()) }()
 
-	prev := setGlobalTPForSpan(tp)
-	defer setGlobalTPForSpan(prev)
+	ctx := fctx.WithTracer(t.Context(), tp.Tracer("test"))
 
 	tracer := tp.Tracer("test")
-	ctx, parent := tracer.Start(context.Background(), "parent")
+	ctx, parent := tracer.Start(ctx, "parent")
 
 	_, child := telemetry.StartSpan(ctx)
 	child.End()
@@ -105,8 +95,8 @@ func TestStartSpan_ChildAttachesToParent(t *testing.T) {
 	assert.Equal(t, parentSpan.SpanContext.SpanID(), childSpan.Parent.SpanID())
 }
 
-func TestStartSpan_NoopWhenNoGlobalTracer(t *testing.T) {
-	ctx, span := telemetry.StartSpan(context.Background())
+func TestStartSpan_NoopWhenNoContextTracer(t *testing.T) {
+	ctx, span := telemetry.StartSpan(t.Context())
 	defer span.End()
 
 	require.NotNil(t, ctx)
@@ -114,16 +104,30 @@ func TestStartSpan_NoopWhenNoGlobalTracer(t *testing.T) {
 	assert.NotPanics(t, func() { span.End() })
 }
 
+func TestStartSpan_UsesContextTracer(t *testing.T) {
+	// A per-context in-memory provider, with NO global set.
+	exp := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
+	defer func() { _ = tp.Shutdown(context.Background()) }()
+
+	ctx := fctx.WithTracer(t.Context(), tp.Tracer("ctx-scope"))
+
+	_, span := telemetry.StartSpan(ctx)
+	span.End()
+
+	spans := exp.GetSpans()
+	require.Len(t, spans, 1, "span recorded on the context provider, not the global")
+}
+
 func TestSpanFunc(t *testing.T) {
 	exp := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
 	defer func() { _ = tp.Shutdown(context.Background()) }()
 
-	prev := setGlobalTPForSpan(tp)
-	defer setGlobalTPForSpan(prev)
+	ctx := fctx.WithTracer(t.Context(), tp.Tracer("test"))
 
 	var called bool
-	telemetry.SpanFunc(context.Background(), "heavy-algorithm", func() {
+	telemetry.SpanFunc(ctx, "heavy-algorithm", func() {
 		called = true
 	})
 
@@ -139,11 +143,10 @@ func TestSpanFunc_ChildAttachesToParent(t *testing.T) {
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
 	defer func() { _ = tp.Shutdown(context.Background()) }()
 
-	prev := setGlobalTPForSpan(tp)
-	defer setGlobalTPForSpan(prev)
+	ctx := fctx.WithTracer(t.Context(), tp.Tracer("test"))
 
 	tracer := tp.Tracer("test")
-	ctx, parent := tracer.Start(context.Background(), "parent")
+	ctx, parent := tracer.Start(ctx, "parent")
 
 	telemetry.SpanFunc(ctx, "child-work", func() {})
 	parent.End()
@@ -154,10 +157,10 @@ func TestSpanFunc_ChildAttachesToParent(t *testing.T) {
 	assert.Equal(t, spans[1].SpanContext.SpanID(), spans[0].Parent.SpanID())
 }
 
-func TestSpanFunc_NoopWhenNoGlobalTracer(t *testing.T) {
+func TestSpanFunc_NoopWhenNoContextTracer(t *testing.T) {
 	var called bool
 	assert.NotPanics(t, func() {
-		telemetry.SpanFunc(context.Background(), "noop-work", func() {
+		telemetry.SpanFunc(t.Context(), "noop-work", func() {
 			called = true
 		})
 	})
@@ -169,11 +172,10 @@ func TestSpanFunc_RecordsPanicAndReraises(t *testing.T) {
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
 	defer func() { _ = tp.Shutdown(context.Background()) }()
 
-	prev := setGlobalTPForSpan(tp)
-	defer setGlobalTPForSpan(prev)
+	ctx := fctx.WithTracer(t.Context(), tp.Tracer("test"))
 
 	assert.PanicsWithValue(t, "something broke", func() {
-		telemetry.SpanFunc(context.Background(), "panicking-work", func() {
+		telemetry.SpanFunc(ctx, "panicking-work", func() {
 			panic("something broke")
 		})
 	})
