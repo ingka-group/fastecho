@@ -377,15 +377,14 @@ func (s *server) run(host string, port string) error {
 
 // serve starts the HTTP server and shuts it down gracefully once ctx is done.
 func (s *server) serve(ctx context.Context, host string, port string) error {
-	// Defer the shutdown of the telemetry providers
 	defer func() { _ = s.Providers.Shutdown(context.Background()) }()
 
 	// Flush buffered logs on the way out
 	defer func() { _ = s.Logger.Sync() }()
 
-	// One counter for all workers; labelled per worker/kind at record time.
-	// MeterProvider is always non-nil (noop when metrics are skipped → Add is a
-	// no-op), so this is safe to create unconditionally.
+	// One counter for all workers, labelled per worker/kind at record time.
+	// MeterProvider is always non-nil (noop when metrics are skipped), so this is
+	// safe to create unconditionally.
 	s.workerFailures, _ = s.Providers.MeterProvider.Meter(telemetry.ScopeName).Int64Counter(
 		"fastecho.worker.failures",
 		metric.WithDescription("background worker panics and error exits"),

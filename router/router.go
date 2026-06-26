@@ -106,21 +106,18 @@ func AddRoute(r *Router, group *echo.Group, path string, handlerFunc echo.Handle
 	return r
 }
 
-// addMetrics serves the OTel Prometheus exporter's registry at /metrics on the
-// main port - but only when a gatherer is provided, i.e. OTEL_METRICS_EXPORTER=
-// prometheus. Under OTLP push (or none) the gatherer is nil and /metrics is NOT
-// mounted: app metrics push via OTLP and never reach a prometheus registry, so the
-// only thing the default registry holds is client_golang's go/process collectors -
-// serving those at /metrics would advertise the wrong pipeline (and invite a
-// double-scrape). No endpoint is clearer than a misleading one.
+// addMetrics serves the OTel Prometheus exporter's registry at /metrics, but only
+// when a gatherer is provided (OTEL_METRICS_EXPORTER=prometheus). Under OTLP push
+// the gatherer is nil and /metrics is not mounted: the default registry would only
+// hold go/process collectors, so serving it would advertise the wrong pipeline.
+// No endpoint is clearer than a misleading one.
 func (r *Router) addMetrics(e *echo.Echo, gatherer prometheus.Gatherer) *Router {
 	if gatherer == nil {
-		return r // push / none: no /metrics endpoint
+		return r
 	}
 	// EnableOpenMetrics so exemplars (the trace_id/span_id the OTel exporter attaches
-	// to counters and histograms) survive exposition - the classic Prometheus text
-	// format has no syntax for them, so without this they're silently dropped here.
-	// Content-negotiated: a scraper that doesn't Accept OpenMetrics still gets plain text.
+	// to metrics) survive exposition; the classic Prometheus text format can't encode
+	// them. Content-negotiated, so a non-OpenMetrics scraper still gets plain text.
 	e.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
 		EnableOpenMetrics: true,
 	})))

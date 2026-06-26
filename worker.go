@@ -78,11 +78,9 @@ func (s *server) runWorker(ctx context.Context, name string, w Worker) {
 // error so that one worker cannot crash the process or affect the others.
 func (s *server) runWorkerOnce(ctx context.Context, name string, w Worker) {
 	ctx = fctx.WithLogger(ctx, s.Logger.With(zap.String("worker", name)))
-	// Seed a tracer that stamps worker=<name> on every span it starts, so the
-	// worker's spans are filterable by worker - they're roots (no inbound HTTP
-	// request), so this label is how you find all runs of a given worker. (This
-	// is exactly what the ctx-scoped tracer buys us: a per-context tracer the
-	// global can't express.) Providers is always non-nil; noop tracer when skipped.
+	// Seed a tracer that stamps worker=<name> on every span; worker spans are
+	// roots (no inbound request), so this label is how you find all runs of a
+	// worker. Providers is always non-nil (noop tracer when tracing is skipped).
 	ctx = fctx.WithTracer(ctx, workerTracer{
 		Tracer: s.Providers.TracerProvider.Tracer(telemetry.ScopeName),
 		attrs:  []attribute.KeyValue{attribute.String("worker", name)},
@@ -108,11 +106,9 @@ func (s *server) runWorkerOnce(ctx context.Context, name string, w Worker) {
 }
 
 // recordWorkerFailure increments the worker-failure counter, labelled by worker
-// and kind (panic|error), so failures are alertable per worker, e.g.
-// rate(fastecho_worker_failures_total{worker="..."}[5m]) > 0. Only fastecho can
-// see these (they happen in runWorkerOnce), so it's a framework-owned metric -
-// like otelecho's HTTP metrics, not a consumer helper. Nil-safe: the counter is
-// created on the Run path (serve); direct runWorkerOnce unit tests may leave it unset.
+// and kind (panic|error), so failures are alertable per worker. Nil-safe: the
+// counter is created on the serve path, so direct runWorkerOnce unit tests may
+// leave it unset.
 func (s *server) recordWorkerFailure(ctx context.Context, name, kind string) {
 	if s.workerFailures == nil {
 		return
@@ -123,12 +119,10 @@ func (s *server) recordWorkerFailure(ctx context.Context, name, kind string) {
 	))
 }
 
-// workerTracer wraps a tracer so every span it starts carries the worker's name
-// as an attribute. Worker spans have no inbound-request parent, so labelling them
-// is how you find all runs of one worker in the trace backend. Note: we do NOT
-// span the whole worker run - workers are long-lived (block until shutdown), so a
-// run-spanning span would stay open for the service lifetime and never export.
-// The worker body spans each unit of work; this tracer just labels those spans.
+// workerTracer stamps the worker's name on every span it starts. We deliberately
+// do not span the whole run: workers block until shutdown, so a run-spanning span
+// would stay open for the service lifetime and never export. The worker body
+// spans each unit of work; this tracer just labels those spans.
 type workerTracer struct {
 	trace.Tracer
 	attrs []attribute.KeyValue

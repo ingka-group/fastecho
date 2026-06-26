@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// telemetry.go is the OpenTelemetry bootstrap half of the package (span.go has
-// StartSpan/SpanFunc + ScopeName). It builds one resource, env-driven exporters
-// and sampling, and one shutdown closer shared by traces and metrics, so the two
-// signals share identity and drain together.
+// telemetry.go bootstraps OpenTelemetry: one shared resource, env-driven
+// exporters and sampling, and one shutdown closer so traces and metrics share
+// identity and drain together. (StartSpan/SpanFunc live in span.go.)
 package telemetry
 
 import (
@@ -41,26 +40,22 @@ import (
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 )
 
-// (ScopeName lives in span.go, the same package, so it is not redeclared here.)
-
-// Config carries only wiring that has no env equivalent. Behaviour values
-// (exporter endpoint, sampling, which exporter) come from OTEL_* env so there
-// is one source of truth per setting; a struct field would duplicate that.
+// Config carries only wiring that has no env equivalent; behaviour values
+// (endpoint, sampling, exporter) come from OTEL_* env so there is one source of
+// truth per setting.
 type Config struct {
 	// SetGlobal registers the providers + propagator as the process-global OTel
-	// singletons. Run/Initialize always pass true (otelecho/otelhttp read the
-	// global propagator to carry traceparent across hops); tests pass false so
-	// parallel instances don't clobber the global. Not exposed on fastecho.Config:
-	// disabling it in production would silently break propagation.
+	// singletons (otelecho/otelhttp read the global propagator to carry
+	// traceparent across hops). Tests pass false so parallel instances don't
+	// clobber the global; not exposed on fastecho.Config because disabling it in
+	// production would silently break propagation.
 	SetGlobal bool
 	// SkipTraces / SkipMetrics disable a signal entirely.
 	SkipTraces  bool
 	SkipMetrics bool
 }
 
-// Providers holds the configured providers and a single shutdown closer. It is a
-// pure runtime handle: the startup snapshot is returned separately from Init as an
-// Info, not parked on the handle it has nothing to do with at runtime.
+// Providers holds the configured providers and a single shutdown closer.
 type Providers struct {
 	TracerProvider trace.TracerProvider
 	MeterProvider  metric.MeterProvider
@@ -70,15 +65,14 @@ type Providers struct {
 	shutdown           func(context.Context) error
 }
 
-// Info is what Init resolved from OTEL_* env and the cfg toggles, for the caller to
-// log once at startup (see fastecho config()). Init owns the env defaults, so it
-// hands the resolution back rather than make the caller re-derive it.
+// Info is what Init resolved from OTEL_* env and the cfg toggles, for the caller
+// to log once at startup.
 type Info struct {
 	ServiceName     string
 	Traces          bool   // exporter active (not SkipTraces)
 	TracesExporter  string // OTEL_TRACES_EXPORTER (default "otlp")
-	OTLPProtocol    string // resolved transport (signal-specific var → general → "http/protobuf"); the fastecho server path forces "grpc" before Init (config()), so it reports "grpc" there but "http/protobuf" on a bare Init
-	OTLPEndpoint    string // OTEL_EXPORTER_OTLP_ENDPOINT; "" => SDK default (grpc localhost:4317, http/protobuf localhost:4318/v1/<signal>)
+	OTLPProtocol    string // resolved transport: signal-specific var → general → "http/protobuf"
+	OTLPEndpoint    string // OTEL_EXPORTER_OTLP_ENDPOINT; "" => SDK default
 	Metrics         bool
 	MetricsExporter string // OTEL_METRICS_EXPORTER (default "prometheus")
 	MetricsDelivery string // "pull (/metrics)" | "push" | "off"
@@ -213,7 +207,7 @@ func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
 // metricsExporter returns the configured metrics exporter, defaulting to
 // prometheus so /metrics stays on the main port (the OTel SDK default is otlp).
 func metricsExporter() string {
-	return envOr("OTEL_METRICS_EXPORTER", "prometheus") // envOr added in L3
+	return envOr("OTEL_METRICS_EXPORTER", "prometheus")
 }
 
 func envOr(key, def string) string {
@@ -223,11 +217,10 @@ func envOr(key, def string) string {
 	return def
 }
 
-// otlpProtocol resolves the OTLP transport exactly the way autoexport does
-// (spans.go/metrics.go): the signal-specific var wins, then the general
-// OTEL_EXPORTER_OTLP_PROTOCOL, then the SDK default "http/protobuf". Reading only
-// the general var would misreport (and mis-default) the moment an operator sets
-// the signal-specific one - so Info would name a transport the exporter isn't using.
+// otlpProtocol resolves the OTLP transport the way autoexport does: the
+// signal-specific var wins, then OTEL_EXPORTER_OTLP_PROTOCOL, then "http/protobuf".
+// Reading only the general var would misreport once an operator sets the
+// signal-specific one.
 func otlpProtocol(signalKey string) string {
 	if v := os.Getenv(signalKey); v != "" {
 		return v
@@ -235,11 +228,9 @@ func otlpProtocol(signalKey string) string {
 	return envOr("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")
 }
 
-// newResource builds the shared resource: service.name/version from env,
-// service.instance.id generated if unset.
+// newResource builds the shared resource from env, generating a
+// service.instance.id only when the operator hasn't set one.
 func newResource(ctx context.Context) (*resource.Resource, error) {
-	// The operator's service.instance.id (via OTEL_RESOURCE_ATTRIBUTES) wins;
-	// generate one only when unset.
 	opts := []resource.Option{resource.WithFromEnv()}
 	if !envHasServiceInstanceID() {
 		opts = append(opts, resource.WithAttributes(

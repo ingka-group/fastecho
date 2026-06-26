@@ -23,11 +23,10 @@ import (
 )
 
 // Fields returns the correlation fields for ctx: trace_id and span_id (when a
-// valid span context is present) and request_id (when set). It is the one place
-// these IDs are built, so middleware, the recover handler, and worker seeds all
-// derive them the same way.
-//
-// These are discrete, indexable log fields (not the traceparent wire header) so the log backend can query by trace_id and link a line to its trace.
+// valid span context is present) and request_id (when set). Centralising them
+// here keeps middleware, the recover handler, and worker seeds consistent.
+// They are discrete, indexable log fields (not the traceparent wire header) so
+// the log backend can query by trace_id and link a line to its trace.
 func Fields(ctx context.Context) []zap.Field {
 	var fields []zap.Field
 

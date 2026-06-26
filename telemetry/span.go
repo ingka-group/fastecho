@@ -29,33 +29,18 @@ import (
 // ScopeName is the instrumentation scope name for fastecho's own spans.
 const ScopeName = "github.com/ingka-group/fastecho/"
 
-// StartSpan starts a child span named after the calling function and returns
-// the updated context and span. End the span with defer span.End().
-//
-// The span name is auto-discovered from the caller using runtime.Caller,
-// formatted as package.Type.Method (e.g. "forecast.Service.Recompute").
-//
-// Uses the tracer from fctx.Tracer(ctx); falls back to a no-op tracer if none is set.
-//
-// For custom span names, use the standard OTel API directly:
-//
-//	tracer := otel.Tracer("my-scope")
-//	ctx, span := tracer.Start(ctx, "custom-name")
+// StartSpan starts a child span named after the calling function (formatted as
+// package.Type.Method, e.g. "forecast.Service.Recompute") and returns the updated
+// context and span; end it with defer span.End(). It uses the tracer from
+// fctx.Tracer(ctx), falling back to a no-op. For a custom name, call the OTel
+// tracer API directly.
 func StartSpan(ctx context.Context, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	return fctx.Tracer(ctx).Start(ctx, callerName(1), opts...)
 }
 
-// SpanFunc wraps a function call in a span with the given name. The span starts
-// before fn is called and ends after fn returns. Use this for tracing functions
-// that don't accept context.Context:
-//
-//	var result T
-//	telemetry.SpanFunc(ctx, "heavy-algorithm", func() {
-//	    result = computeHeavyAlgorithm(data)
-//	})
-//
-// If fn panics, the panic is recorded on the span and re-raised.
-// If tracing is not configured, fn is still called (no-op span).
+// SpanFunc runs fn inside a span named name, for tracing work that has no
+// context.Context to thread. A panic in fn is recorded on the span and re-raised.
+// With tracing off, fn still runs under a no-op span.
 func SpanFunc(ctx context.Context, name string, fn func()) {
 	_, span := fctx.Tracer(ctx).Start(ctx, name)
 	defer span.End()
@@ -78,13 +63,12 @@ func callerName(skip int) string {
 	}
 	name := runtime.FuncForPC(pc).Name()
 
-	// Strip module path: "github.com/ingka-group/myservice/internal/forecast.(*Service).Recompute"
-	// becomes "forecast.(*Service).Recompute"
+	// Strip the module path, leaving package.Type.Method.
 	if idx := strings.LastIndex(name, "/"); idx >= 0 {
 		name = name[idx+1:]
 	}
 
-	// Strip pointer receiver: "forecast.(*Service).Recompute" becomes "forecast.Service.Recompute"
+	// Strip pointer-receiver punctuation: "(*Service)" -> "Service".
 	name = strings.ReplaceAll(name, "(*", "")
 	name = strings.ReplaceAll(name, ")", "")
 

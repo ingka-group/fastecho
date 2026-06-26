@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// httpclient.go adds outbound HTTP propagation to the telemetry package: it
-// decorates an existing *http.Client / RoundTripper so a request carries its
-// inbound correlation onward - W3C traceparent (via otelhttp) and the
-// X-Request-Id from fctx - keeping a distributed trace unbroken across a service
-// hop instead of starting fresh on every outbound call. (Package doc lives in
-// telemetry.go.)
+// httpclient.go decorates an *http.Client / RoundTripper so outbound requests
+// propagate their inbound correlation - W3C traceparent (via otelhttp) and the
+// fctx X-Request-Id - keeping a distributed trace unbroken across service hops.
+// (Package doc lives in telemetry.go.)
 package telemetry
 
 import (
@@ -28,11 +26,9 @@ import (
 	"github.com/ingka-group/fastecho/fctx"
 )
 
-// WrapClient augments c's transport so every request it sends propagates the
-// caller's trace context (traceparent, via otelhttp) and forwards
-// fctx.RequestID(ctx) as X-Request-Id. It mutates and returns c; a nil or
-// zero-value client is fine. Set the timeout, headers, etc. on c as usual -
-// this only decorates the transport.
+// WrapClient decorates c's transport so every request propagates the caller's
+// trace context (via otelhttp) and forwards fctx.RequestID as X-Request-Id. It
+// mutates and returns c; a nil client is allocated. Only the transport changes.
 func WrapClient(c *http.Client) *http.Client {
 	if c == nil {
 		c = &http.Client{}
