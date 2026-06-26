@@ -37,6 +37,9 @@ import (
 func TestWrapClient_InjectsTraceparentAndRequestID(t *testing.T) {
 	// otelhttp injects via the global propagator, which defaults to a no-op;
 	// without this the traceparent assertion below fails (nothing is injected).
+	// Restore the prior propagator so this global mutation doesn't leak to other tests.
+	prevProp := otel.GetTextMapPropagator()
+	t.Cleanup(func() { otel.SetTextMapPropagator(prevProp) })
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 
 	var gotTraceparent, gotRequestID string
@@ -73,6 +76,8 @@ func seedSpan(t *testing.T, ctx context.Context) context.Context {
 }
 
 func TestRoundTrip_PropagatesTraceAndRequestID(t *testing.T) {
+	prevProp := otel.GetTextMapPropagator()
+	t.Cleanup(func() { otel.SetTextMapPropagator(prevProp) })
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 	tp := sdktrace.NewTracerProvider()
 	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
