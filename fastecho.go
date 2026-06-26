@@ -138,12 +138,13 @@ func (fe *FastEcho) Handler() http.Handler {
 	return fe.server.Echo
 }
 
-// Shutdown cleanly shuts down the server and any tracing providers.
+// Shutdown cleanly shuts down the server and any telemetry providers. Both are
+// always attempted and their errors joined - a telemetry-flush error must not
+// skip draining in-flight HTTP requests.
 func (fe *FastEcho) Shutdown(ctx context.Context) error {
-	if err := fe.server.Providers.Shutdown(ctx); err != nil {
-		return err
-	}
-	return fe.server.Echo.Shutdown(ctx)
+	provErr := fe.server.Providers.Shutdown(ctx)
+	echoErr := fe.server.Echo.Shutdown(ctx)
+	return errors.Join(provErr, echoErr)
 }
 
 // BindValidate binds the request body to v and validates it using the
