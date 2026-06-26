@@ -28,9 +28,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.uber.org/zap"
 
 	"github.com/ingka-group/fastecho/echozap"
@@ -210,6 +210,7 @@ func (s *server) setup(cfg *Config) error {
 			HealthChecksDB:   cfg.Opts.HealthChecks.DB,
 			SwaggerTitle:     envs[swaggerUITitle].Value,
 			SwaggerPath:      envs[swaggerJSONPath].Value,
+			MetricsGatherer:  s.Providers.PrometheusGatherer,
 		},
 	)
 	if err != nil {
@@ -297,6 +298,9 @@ func (s *server) config(cfg *Config) error {
 		zap.String("traces_exporter", info.TracesExporter),
 		zap.String("otlp_protocol", info.OTLPProtocol),
 		zap.String("otlp_endpoint", endpoint),
+		zap.Bool("metrics", info.Metrics),
+		zap.String("metrics_exporter", info.MetricsExporter),
+		zap.String("metrics_delivery", info.MetricsDelivery),
 	)
 
 	return nil
@@ -304,11 +308,18 @@ func (s *server) config(cfg *Config) error {
 
 // middlewares configures all the middlewares for Echo.
 func (s *server) middlewares(cfg *Config) {
-	if !cfg.Opts.Tracing.Skip {
-		s.Echo.Use(telemetry.Middleware(
-			telemetry.WithSkipper(func(ctx echo.Context) bool {
-				return isSwaggerRoute(ctx) || isMetricsRoute(ctx) || isHealthRoute(ctx)
-			}),
+	skip := func(c echo.Context) bool {
+		return isSwaggerRoute(c) || isMetricsRoute(c) || isHealthRoute(c)
+	}
+
+	// Register otelecho only when a signal is on, honouring the Skip toggles
+	// (not a nil check).
+	if !cfg.Opts.Tracing.Skip || !cfg.Opts.Metrics.Skip {
+		s.Echo.Use(otelecho.Middleware(
+			otelServiceName(),
+			otelecho.WithTracerProvider(s.Providers.TracerProvider),
+			otelecho.WithMeterProvider(s.Providers.MeterProvider),
+			otelecho.WithSkipper(skip),
 		))
 	}
 
@@ -339,11 +350,6 @@ func (s *server) middlewares(cfg *Config) {
 			return isSwaggerRoute(ctx) || isMetricsRoute(ctx)
 		},
 	}))
-
-	// Metrics
-	if !cfg.Opts.Metrics.Skip {
-		s.Echo.Use(echoprometheus.NewMiddleware("echo_http"))
-	}
 
 	// Recover
 	s.Echo.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{
@@ -429,4 +435,13 @@ func isSwaggerRoute(ctx echo.Context) bool {
 // isHealthRoute returns whether the request is to health endpoint.
 func isHealthRoute(ctx echo.Context) bool {
 	return strings.Contains(ctx.Request().URL.Path, "/health")
+}
+
+// otelServiceName is the span/metric service label otelecho requires as its
+// first arg. The resource service.name comes from OTEL_SERVICE_NAME; reuse it.
+func otelServiceName() string {
+	if v := os.Getenv("OTEL_SERVICE_NAME"); v != "" {
+		return v
+	}
+	return "fastecho"
 }

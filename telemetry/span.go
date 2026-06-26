@@ -26,6 +26,9 @@ import (
 	"github.com/ingka-group/fastecho/fctx"
 )
 
+// ScopeName is the instrumentation scope name for fastecho's own spans.
+const ScopeName = "github.com/ingka-group/fastecho/"
+
 // StartSpan starts a child span named after the calling function and returns
 // the updated context and span. End the span with defer span.End().
 //

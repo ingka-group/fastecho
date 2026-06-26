@@ -18,8 +18,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	swguicdn "github.com/swaggest/swgui/v5cdn"
 	"gorm.io/gorm"
 
@@ -41,6 +42,7 @@ type Config struct {
 	HealthChecksDB   *gorm.DB
 	SwaggerTitle     string
 	SwaggerPath      string
+	MetricsGatherer  prometheus.Gatherer // OTel Prometheus exporter registry; nil under OTLP push / none
 }
 
 // Route contains the details of a route.
@@ -84,7 +86,7 @@ func NewRouter(cfg Config) (*Router, error) {
 	}
 
 	if !cfg.SkipMetrics {
-		r.addMetrics(cfg.Echo)
+		r.addMetrics(cfg.Echo, cfg.MetricsGatherer)
 	}
 
 	r.addSwagger(cfg.Echo, cfg.SwaggerTitle, cfg.SwaggerPath)
@@ -104,9 +106,24 @@ func AddRoute(r *Router, group *echo.Group, path string, handlerFunc echo.Handle
 	return r
 }
 
-// addMetrics adds a handler for metrics.
-func (r *Router) addMetrics(e *echo.Echo) *Router {
-	e.GET("/metrics", echoprometheus.NewHandler())
+// addMetrics serves the OTel Prometheus exporter's registry at /metrics on the
+// main port - but only when a gatherer is provided, i.e. OTEL_METRICS_EXPORTER=
+// prometheus. Under OTLP push (or none) the gatherer is nil and /metrics is NOT
+// mounted: app metrics push via OTLP and never reach a prometheus registry, so the
+// only thing the default registry holds is client_golang's go/process collectors -
+// serving those at /metrics would advertise the wrong pipeline (and invite a
+// double-scrape). No endpoint is clearer than a misleading one.
+func (r *Router) addMetrics(e *echo.Echo, gatherer prometheus.Gatherer) *Router {
+	if gatherer == nil {
+		return r // push / none: no /metrics endpoint
+	}
+	// EnableOpenMetrics so exemplars (the trace_id/span_id the OTel exporter attaches
+	// to counters and histograms) survive exposition - the classic Prometheus text
+	// format has no syntax for them, so without this they're silently dropped here.
+	// Content-negotiated: a scraper that doesn't Accept OpenMetrics still gets plain text.
+	e.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
+		EnableOpenMetrics: true,
+	})))
 	return r
 }
 

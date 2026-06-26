@@ -67,6 +67,20 @@ func TestInit_TwoInstancesNoGlobal_DoNotInterfere(t *testing.T) {
 	assert.NotSame(t, a.TracerProvider, b.TracerProvider)
 }
 
+func TestInit_PrometheusGathererExposed(t *testing.T) {
+	t.Setenv("OTEL_METRICS_EXPORTER", "prometheus")
+	p := initForTest(t, telemetry.Config{SetGlobal: false})
+	require.NotNil(t, p.PrometheusGatherer, "prometheus exporter exposes a gatherer for /metrics")
+}
+
+func TestInit_MeterProviderUsableWhenSkipped(t *testing.T) {
+	// Skipping metrics must still leave a non-nil (noop) provider so callers
+	// never nil-check it.
+	p := initForTest(t, telemetry.Config{SetGlobal: false, SkipMetrics: true})
+	_, err := p.MeterProvider.Meter("probe").Int64Counter("probe.count")
+	require.NoError(t, err) // noop provider, but must not panic/error
+}
+
 // This test drives Shutdown directly, so it does its own Init. (initForTest
 // registers a cleanup Shutdown, which would muddy the idempotency check.)
 func TestInit_ShutdownIsNilSafeAndIdempotent(t *testing.T) {
