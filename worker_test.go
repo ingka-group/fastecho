@@ -27,22 +27,29 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/embedded"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/ingka-group/fastecho/fctx"
+	"github.com/ingka-group/fastecho/telemetry"
 )
 
 // newObserverServer builds a bare server whose logs are captured for assertions.
 func newObserverServer() (*server, *observer.ObservedLogs) {
 	core, logs := observer.New(zapcore.InfoLevel)
 	return &server{
-		Echo:                       echo.New(),
-		Logger:                     zap.New(core),
+		Echo:   echo.New(),
+		Logger: zap.New(core),
+		Providers: &telemetry.Providers{
+			TracerProvider: tracenoop.NewTracerProvider(),
+			MeterProvider:  metricnoop.NewMeterProvider(),
+		},
 		workerInitialRestartDelay:  1 * time.Millisecond,
 		workerMaxRestartDelay:      10 * time.Millisecond,
 		workerStableResetThreshold: 1 * time.Second,
@@ -207,6 +214,14 @@ func (stubTracer) Start(ctx context.Context, _ string, _ ...trace.SpanStartOptio
 	return ctx, nil
 }
 
+// stubTracerProvider hands out stubTracer so the worker-seed test can assert
+// runWorkerOnce sources its tracer from s.Providers.TracerProvider.
+type stubTracerProvider struct{ embedded.TracerProvider }
+
+func (stubTracerProvider) Tracer(_ string, _ ...trace.TracerOption) trace.Tracer {
+	return stubTracer{}
+}
+
 func TestRunWorkerInjectsLogger(t *testing.T) {
 	s, logs := newObserverServer()
 
@@ -221,8 +236,7 @@ func TestRunWorkerInjectsLogger(t *testing.T) {
 
 func TestRunWorkerInjectsTracer(t *testing.T) {
 	s, _ := newObserverServer()
-	var tracer trace.Tracer = stubTracer{}
-	s.Tracer = &tracer
+	s.Providers = &telemetry.Providers{TracerProvider: stubTracerProvider{}}
 
 	var got trace.Tracer
 	s.runWorkerOnce(context.Background(), func(ctx context.Context) error {
@@ -231,7 +245,7 @@ func TestRunWorkerInjectsTracer(t *testing.T) {
 	})
 
 	assert.IsType(t, stubTracer{}, got,
-		"worker context should carry the server tracer, not the no-op fallback")
+		"worker context should carry the tracer from s.Providers.TracerProvider, not the no-op fallback")
 }
 
 func TestRunWorkerRestartsAfterFailuresThenStabilizes(t *testing.T) {

@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/ingka-group/fastecho/fctx"
+	"github.com/ingka-group/fastecho/telemetry"
 )
 
 // Worker is a long-running background process managed by fastecho's lifecycle.
@@ -73,9 +74,7 @@ func (s *server) runWorker(ctx context.Context, w Worker) {
 // error so that one worker cannot crash the process or affect the others.
 func (s *server) runWorkerOnce(ctx context.Context, w Worker) {
 	ctx = fctx.WithLogger(ctx, s.Logger)
-	if s.Tracer != nil {
-		ctx = fctx.WithTracer(ctx, *s.Tracer)
-	}
+	ctx = fctx.WithTracer(ctx, s.Providers.TracerProvider.Tracer(telemetry.ScopeName))
 
 	defer func() {
 		if r := recover(); r != nil {

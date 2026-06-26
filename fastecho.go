@@ -31,9 +31,6 @@ import (
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/prometheus/client_golang/prometheus"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/ingka-group/fastecho/echozap"
@@ -83,12 +80,11 @@ var (
 
 // server is a wrapper around Echo.
 type server struct {
-	Echo           *echo.Echo
-	Router         *router.Router
-	Logger         *zap.Logger
-	Tracer         *trace.Tracer
-	TracerProvider *sdktrace.TracerProvider
-	Workers        []Worker
+	Echo      *echo.Echo
+	Router    *router.Router
+	Logger    *zap.Logger
+	Providers *telemetry.Providers
+	Workers   []Worker
 
 	workerInitialRestartDelay  time.Duration
 	workerMaxRestartDelay      time.Duration
@@ -144,12 +140,9 @@ func (fe *FastEcho) Handler() http.Handler {
 
 // Shutdown cleanly shuts down the server and any tracing providers.
 func (fe *FastEcho) Shutdown(ctx context.Context) error {
-	if fe.server.TracerProvider != nil {
-		_ = fe.server.TracerProvider.Shutdown(ctx)
+	if err := fe.server.Providers.Shutdown(ctx); err != nil {
+		return err
 	}
-	// Clean up global variables after shutdown
-	defer func() { prometheus.DefaultRegisterer = prometheus.NewRegistry() }()
-
 	return fe.server.Echo.Shutdown(ctx)
 }
 
@@ -276,20 +269,35 @@ func (s *server) config(cfg *Config) error {
 	}
 	s.Logger = logger
 
-	// only init tracing if it's not disabled
-	var tracerProvider *sdktrace.TracerProvider
-	var tracer *trace.Tracer
-
-	// enable/disable tracing
-	if !cfg.Opts.Tracing.Skip {
-		tracerProvider, tracer, err = newTracer()
-		if err != nil {
-			return err
-		}
-
-		s.Tracer = tracer
-		s.TracerProvider = tracerProvider
+	// fastecho's old code hardcoded gRPC; preserve that as the default when the
+	// operator set no traces protocol (check both vars - autoexport reads the
+	// signal-specific one first). They opt into the OTel default by setting either.
+	if os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL") == "" &&
+		os.Getenv("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL") == "" {
+		_ = os.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
 	}
+
+	providers, info, err := telemetry.Init(context.Background(), telemetry.Config{
+		SetGlobal:   true,
+		SkipTraces:  cfg.Opts.Tracing.Skip,
+		SkipMetrics: cfg.Opts.Metrics.Skip,
+	})
+	if err != nil {
+		return err
+	}
+	s.Providers = providers
+
+	endpoint := info.OTLPEndpoint
+	if endpoint == "" {
+		endpoint = "(SDK default)"
+	}
+	s.Logger.Info("telemetry configured",
+		zap.String("service_name", info.ServiceName),
+		zap.Bool("traces", info.Traces),
+		zap.String("traces_exporter", info.TracesExporter),
+		zap.String("otlp_protocol", info.OTLPProtocol),
+		zap.String("otlp_endpoint", endpoint),
+	)
 
 	return nil
 }
@@ -322,10 +330,7 @@ func (s *server) middlewares(cfg *Config) {
 	}))
 
 	// Context
-	var tracer trace.Tracer
-	if s.Tracer != nil {
-		tracer = *s.Tracer
-	}
+	tracer := s.Providers.TracerProvider.Tracer(telemetry.ScopeName)
 	s.Echo.Use(fctx.Middleware(s.Logger, tracer))
 
 	// Gzip
@@ -377,12 +382,8 @@ func (s *server) run(host string, port string) error {
 
 // serve starts the HTTP server and shuts it down gracefully once ctx is done.
 func (s *server) serve(ctx context.Context, host string, port string) error {
-	// Defer the shutdown of the tracer provider
-	defer func() {
-		if s.TracerProvider != nil {
-			_ = s.TracerProvider.Shutdown(context.Background())
-		}
-	}()
+	// Defer the shutdown of the telemetry providers
+	defer func() { _ = s.Providers.Shutdown(context.Background()) }()
 
 	// Flush buffered logs on the way out
 	defer func() { _ = s.Logger.Sync() }()

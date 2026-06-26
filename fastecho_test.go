@@ -29,8 +29,12 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/ingka-group/fastecho/telemetry"
 )
 
 // newTestServer builds a bare server with a no-op logger, enough to test
@@ -39,6 +43,10 @@ func newTestServer() *server {
 	return &server{
 		Echo:   echo.New(),
 		Logger: zap.NewNop(),
+		Providers: &telemetry.Providers{
+			TracerProvider: tracenoop.NewTracerProvider(),
+			MeterProvider:  metricnoop.NewMeterProvider(),
+		},
 
 		workerInitialRestartDelay:  1 * time.Millisecond,
 		workerMaxRestartDelay:      10 * time.Millisecond,
@@ -193,6 +201,10 @@ func TestServeFlushesLogsOnShutdown(t *testing.T) {
 	s := &server{
 		Echo:   echo.New(),
 		Logger: zap.New(core),
+		Providers: &telemetry.Providers{
+			TracerProvider: tracenoop.NewTracerProvider(),
+			MeterProvider:  metricnoop.NewMeterProvider(),
+		},
 	}
 
 	p := freePort(t)
