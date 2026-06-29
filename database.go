@@ -77,6 +77,8 @@ var (
 func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 	var db *gorm.DB
 
+	printBanner("⚡ fastecho: initializing database")
+
 	// options are not used here
 	err := dbEnvs.SetEnv()
 	if err != nil {
@@ -108,7 +110,7 @@ func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 
 	logLevel := env.GetLogLevel()
 	_, gormLevelStr := gormLogLevel(logLevel)
-	printBanner("fastecho database configuration",
+	printBanner("Database configuration",
 		"LOG_LEVEL (env)", logLevel,
 		"GORM level", gormLevelStr,
 	)

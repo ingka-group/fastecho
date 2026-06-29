@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -173,6 +174,8 @@ func newServer(cfg *Config) (*server, error) {
 		cfg = &Config{}
 	}
 
+	printBanner(fmt.Sprintf("⚡ fastecho %s: booting", version()))
+
 	err := s.setup(cfg)
 	if err != nil {
 		return nil, err
@@ -187,6 +190,7 @@ func (s *server) setup(cfg *Config) error {
 
 	// set up echo
 	s.Echo = echo.New()
+	s.Echo.HideBanner = true
 
 	// config the service
 	err = s.config(cfg)
@@ -199,7 +203,7 @@ func (s *server) setup(cfg *Config) error {
 
 	// Print log level configuration at startup
 	logLevel := env.GetLogLevel()
-	printBanner("fastecho log configuration",
+	printBanner("Log configuration",
 		"LOG_LEVEL (env)", logLevel,
 		"EchoZap level", s.Logger.Level().String(),
 	)
@@ -255,9 +259,6 @@ func (s *server) setup(cfg *Config) error {
 }
 
 func (s *server) config(cfg *Config) error {
-	// Set environment variables MUST be the first step
-	// merge default env vars with extra env vars
-
 	var allEnvs = make(env.Map)
 	maps.Copy(allEnvs, envs)
 	maps.Copy(allEnvs, cfg.ExtraEnvs)
@@ -283,19 +284,15 @@ func (s *server) config(cfg *Config) error {
 	}
 	s.Providers = providers
 
-	endpoint := info.OTLPEndpoint
-	if endpoint == "" {
-		endpoint = "(SDK default)"
-	}
-	s.Logger.Info("telemetry configured",
-		zap.String("service_name", info.ServiceName),
-		zap.Bool("traces", info.Traces),
-		zap.String("traces_exporter", info.TracesExporter),
-		zap.String("otlp_protocol", info.OTLPProtocol),
-		zap.String("otlp_endpoint", endpoint),
-		zap.Bool("metrics", info.Metrics),
-		zap.String("metrics_exporter", info.MetricsExporter),
-		zap.String("metrics_delivery", info.MetricsDelivery),
+	printBanner("Telemetry configuration",
+		"Service name", info.ServiceName,
+		"OTLP protocol", info.OTLPProtocol,
+		"OTLP endpoint", info.OTLPEndpoint,
+		"Metrics enabled", strconv.FormatBool(info.Metrics),
+		"Metrics exporter", info.MetricsExporter,
+		"Metrics delivery", info.MetricsDelivery,
+		"Traces enabled", strconv.FormatBool(info.Traces),
+		"Traces exporter", info.TracesExporter,
 	)
 
 	return nil
@@ -333,7 +330,7 @@ func (s *server) middlewares(cfg *Config) {
 	// 3. otelecho trace + metrics, registered only when a signal is on.
 	if !cfg.Opts.Tracing.Skip || !cfg.Opts.Metrics.Skip {
 		s.Echo.Use(otelecho.Middleware(
-			otelServiceName(),
+			env.GetEnvVarOrDefault("OTEL_SERVICE_NAME", "fastecho"),
 			otelecho.WithTracerProvider(s.Providers.TracerProvider),
 			otelecho.WithMeterProvider(s.Providers.MeterProvider),
 			otelecho.WithSkipper(skip),
@@ -432,13 +429,4 @@ func isSwaggerRoute(ctx echo.Context) bool {
 // isHealthRoute returns whether the request is to health endpoint.
 func isHealthRoute(ctx echo.Context) bool {
 	return strings.Contains(ctx.Request().URL.Path, "/health")
-}
-
-// otelServiceName is the span/metric service label otelecho requires as its
-// first arg. The resource service.name comes from OTEL_SERVICE_NAME; reuse it.
-func otelServiceName() string {
-	if v := os.Getenv("OTEL_SERVICE_NAME"); v != "" {
-		return v
-	}
-	return "fastecho"
 }

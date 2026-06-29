@@ -31,12 +31,12 @@ import (
 )
 
 // Worker is a long-running background process managed by fastecho's lifecycle.
-// It should block until ctx is cancelled, returning ctx.Err() (or nil) on shutdown.
+// It should block until ctx is canceled, returning ctx.Err() (or nil) on shutdown.
 type Worker func(ctx context.Context) error
 
 // runWorker supervises a worker for the lifetime of ctx, restarting it with
 // capped exponential backoff on any early return so a crashed worker is never
-// left silently dead until shutdown. It exits only when ctx is cancelled.
+// left silently dead until shutdown. It exits only when ctx is canceled.
 func (s *server) runWorker(ctx context.Context, name string, w Worker) {
 	delay := s.workerInitialRestartDelay
 	failures := 0
@@ -78,6 +78,7 @@ func (s *server) runWorker(ctx context.Context, name string, w Worker) {
 // error so that one worker cannot crash the process or affect the others.
 func (s *server) runWorkerOnce(ctx context.Context, name string, w Worker) {
 	ctx = fctx.WithLogger(ctx, s.Logger.With(zap.String("worker", name)))
+
 	// Seed a tracer that stamps worker=<name> on every span; worker spans are
 	// roots (no inbound request), so this label is how you find all runs of a
 	// worker. Providers is always non-nil (noop tracer when tracing is skipped).
@@ -85,8 +86,9 @@ func (s *server) runWorkerOnce(ctx context.Context, name string, w Worker) {
 		Tracer: s.Providers.TracerProvider.Tracer(telemetry.ScopeName),
 		attrs:  []attribute.KeyValue{attribute.String("worker", name)},
 	})
+
 	// Fresh request id per run, so each restart's logs/spans correlate to that run.
-	ctx = fctx.WithNewRequestID(ctx)
+	ctx = fctx.WithRequestID(ctx, fctx.NewRequestID())
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -98,14 +100,14 @@ func (s *server) runWorkerOnce(ctx context.Context, name string, w Worker) {
 		}
 	}()
 
-	// A cancelled context is the expected shutdown signal, not an error.
+	// A canceled context is the expected shutdown signal, not an error.
 	if err := w(ctx); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 		s.recordWorkerFailure(ctx, name, "error")
 		fctx.Logger(ctx).Error("worker exited with error", zap.Error(err))
 	}
 }
 
-// recordWorkerFailure increments the worker-failure counter, labelled by worker
+// recordWorkerFailure increments the worker-failure counter, labeled by worker
 // and kind (panic|error), so failures are alertable per worker. Nil-safe: the
 // counter is created on the serve path, so direct runWorkerOnce unit tests may
 // leave it unset.
@@ -136,6 +138,7 @@ func (t workerTracer) Start(ctx context.Context, name string, opts ...trace.Span
 // drain in time it logs a warning and returns anyway.
 func (s *server) drainWorkers(ctx context.Context, workers *sync.WaitGroup) {
 	done := make(chan struct{})
+
 	// A worker that ignores cancellation leaks this goroutine, which is
 	// acceptable: drainWorkers runs only as the process exits.
 	go func() {

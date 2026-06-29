@@ -15,7 +15,6 @@
 package env
 
 import (
-	"fmt"
 	"os"
 )
 
@@ -28,14 +27,12 @@ const (
 	ProdLogLevel = "prod"
 )
 
-// GetLogLevel reads LOG_LEVEL from the environment and falls back to DevLevel if invalid.
+// GetLogLevel reads LOG_LEVEL from the environment, falling back to DevLogLevel
+// when unset or invalid.
 func GetLogLevel() string {
 	level := os.Getenv(LogLevel)
-
 	if level != DevLogLevel && level != TestLogLevel && level != ProdLogLevel {
-		fmt.Printf("no valid %s set, falling back to %s\n", LogLevel, DevLogLevel)
-		level = DevLogLevel
+		return DevLogLevel
 	}
-
 	return level
 }

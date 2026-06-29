@@ -19,6 +19,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
@@ -101,11 +102,24 @@ func (m Map) SetEnv() error {
 	return nil
 }
 
-// loadEnvFile loads the variables of an env file. If it's not present, this step is skipped.
-func loadEnvFile(filename string) {
-	err := godotenv.Load(filename)
-	// Don't stop or fail if the .env file doesn't exist.
-	if errors.Is(err, os.ErrNotExist) {
-		fmt.Printf("'%s' configuration file doesn't exist. Don't worry, fastecho will read the environment variables.", filename)
+// GetEnvVarOrDefault retrieves the env value for key and returns default value if env key is not set.
+func GetEnvVarOrDefault(key string, defaultValue string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
+	return defaultValue
 }
+
+// loadEnvFile loads the variables of an env file. If it's not present, this step is skipped.
+// Runs once: SetEnv is called per env Map, but the .env only needs loading once.
+func loadEnvFile(filename string) {
+	loadEnvOnce.Do(func() {
+		err := godotenv.Load(filename)
+		// Don't stop or fail if the .env file doesn't exist.
+		if errors.Is(err, os.ErrNotExist) {
+			fmt.Printf("Loading environment variables. '%s' configuration file doesn't exist. Don't worry, fastecho will read the environment variables.\n", filename)
+		}
+	})
+}
+
+var loadEnvOnce sync.Once

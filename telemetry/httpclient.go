@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// httpclient.go decorates an *http.Client / RoundTripper so outbound requests
-// propagate their inbound correlation - W3C traceparent (via otelhttp) and the
-// fctx X-Request-Id - keeping a distributed trace unbroken across service hops.
-// (Package doc lives in telemetry.go.)
 package telemetry
 
 import (
@@ -55,8 +51,6 @@ func (t requestIDTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	// The RoundTripper contract forbids mutating the caller's request; otelhttp
 	// (the wrapped base) also injects headers, so hand everything below a clone.
 	req = req.Clone(req.Context())
-
-	// Forward the request_id from the fctx context (plain header, not baggage).
 	if id := fctx.RequestID(req.Context()); id != "" && req.Header.Get("X-Request-Id") == "" {
 		req.Header.Set("X-Request-Id", id)
 	}

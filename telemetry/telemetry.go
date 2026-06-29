@@ -12,15 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// telemetry.go bootstraps OpenTelemetry: one shared resource, env-driven
-// exporters and sampling, and one shutdown closer so traces and metrics share
-// identity and drain together. (StartSpan/SpanFunc live in span.go.)
 package telemetry
 
 import (
 	"context"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -38,21 +34,23 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
+
+	"github.com/ingka-group/fastecho/env"
 )
 
-// Config carries only wiring that has no env equivalent; behaviour values
+// Config carries only wiring that has no env equivalent; behavior values
 // (endpoint, sampling, exporter) come from OTEL_* env so there is one source of
 // truth per setting.
 type Config struct {
+	SkipTraces  bool
+	SkipMetrics bool
+
 	// SetGlobal registers the providers + propagator as the process-global OTel
 	// singletons (otelecho/otelhttp read the global propagator to carry
 	// traceparent across hops). Tests pass false so parallel instances don't
 	// clobber the global; not exposed on fastecho.Config because disabling it in
 	// production would silently break propagation.
 	SetGlobal bool
-	// SkipTraces / SkipMetrics disable a signal entirely.
-	SkipTraces  bool
-	SkipMetrics bool
 }
 
 // Providers holds the configured providers and a single shutdown closer.
@@ -72,7 +70,7 @@ type Info struct {
 	Traces          bool   // exporter active (not SkipTraces)
 	TracesExporter  string // OTEL_TRACES_EXPORTER (default "otlp")
 	OTLPProtocol    string // resolved transport: signal-specific var → general → "http/protobuf"
-	OTLPEndpoint    string // OTEL_EXPORTER_OTLP_ENDPOINT; "" => SDK default
+	OTLPEndpoint    string // resolved: OTEL_EXPORTER_OTLP_ENDPOINT, else the protocol's SDK default
 	Metrics         bool
 	MetricsExporter string // OTEL_METRICS_EXPORTER (default "prometheus")
 	MetricsDelivery string // "pull (/metrics)" | "push" | "off"
@@ -87,7 +85,7 @@ func (p *Providers) Shutdown(ctx context.Context) error {
 }
 
 // Init builds the providers from OTEL_* env and returns them with one shutdown,
-// plus an Info snapshot of what it resolved for the caller to log at startup.
+// plus an info snapshot of what it resolved for the caller to log at startup.
 func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
 	// Preserve fastecho's historical gRPC default. autoexport reads
 	// OTEL_EXPORTER_OTLP_PROTOCOL itself to pick the transport for BOTH the trace
@@ -184,9 +182,9 @@ func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
 	info := Info{
 		ServiceName:    os.Getenv("OTEL_SERVICE_NAME"),
 		Traces:         !cfg.SkipTraces,
-		TracesExporter: envOr("OTEL_TRACES_EXPORTER", "otlp"),
+		TracesExporter: env.GetEnvVarOrDefault("OTEL_TRACES_EXPORTER", "otlp"),
 		OTLPProtocol:   otlpProtocol("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"),
-		OTLPEndpoint:   os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+		OTLPEndpoint:   otlpEndpoint(),
 	}
 
 	me := metricsExporter()
@@ -207,47 +205,39 @@ func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
 // metricsExporter returns the configured metrics exporter, defaulting to
 // prometheus so /metrics stays on the main port (the OTel SDK default is otlp).
 func metricsExporter() string {
-	return envOr("OTEL_METRICS_EXPORTER", "prometheus")
+	return env.GetEnvVarOrDefault("OTEL_METRICS_EXPORTER", "prometheus")
 }
 
-func envOr(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-// otlpProtocol resolves the OTLP transport the way autoexport does: the
-// signal-specific var wins, then OTEL_EXPORTER_OTLP_PROTOCOL, then "http/protobuf".
-// Reading only the general var would misreport once an operator sets the
-// signal-specific one.
+// otlpProtocol resolves the OTLP transport: the signal-specific var wins, then
+// OTEL_EXPORTER_OTLP_PROTOCOL. Defaults to grpc to match Init's backward-compat
+// default; reading only the general var would misreport once an operator sets
+// the signal-specific one.
 func otlpProtocol(signalKey string) string {
 	if v := os.Getenv(signalKey); v != "" {
 		return v
 	}
-	return envOr("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")
+	return env.GetEnvVarOrDefault("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
 }
 
-// newResource builds the shared resource from env, generating a
-// service.instance.id only when the operator hasn't set one.
+// otlpEndpoint reports the OTLP endpoint that will be dialed: the operator's
+// OTEL_EXPORTER_OTLP_ENDPOINT if set, else the SDK default for the resolved
+// protocol (grpc => :4317, http/protobuf => :4318). Reporting the default
+// rather than "(unset)" shows the address actually used.
+func otlpEndpoint() string {
+	if v := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
+		return v
+	}
+	if otlpProtocol("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL") == "grpc" {
+		return "http://localhost:4317 (default)"
+	}
+	return "http://localhost:4318 (default)"
+}
+
+// newResource builds the shared resource, seeding a default
+// service.instance.id that env overrides on conflict (env is merged last).
 func newResource(ctx context.Context) (*resource.Resource, error) {
-	opts := []resource.Option{resource.WithFromEnv()}
-	if !envHasServiceInstanceID() {
-		opts = append(opts, resource.WithAttributes(
-			semconv.ServiceInstanceID(uuid.New().String()),
-		))
-	}
-	return resource.New(ctx, opts...)
-}
-
-// envHasServiceInstanceID reports whether OTEL_RESOURCE_ATTRIBUTES already sets
-// service.instance.id (comma-separated key=value pairs).
-func envHasServiceInstanceID() bool {
-	for _, kv := range strings.Split(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"), ",") {
-		if k, _, ok := strings.Cut(kv, "="); ok &&
-			strings.TrimSpace(k) == string(semconv.ServiceInstanceIDKey) {
-			return true
-		}
-	}
-	return false
+	return resource.New(ctx,
+		resource.WithAttributes(semconv.ServiceInstanceID(uuid.New().String())),
+		resource.WithFromEnv(),
+	)
 }

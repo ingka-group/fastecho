@@ -14,13 +14,42 @@
 
 package fastecho
 
-import "fmt"
+import (
+	"fmt"
+	"runtime/debug"
+)
 
-// printBanner prints a colored startup section with a title and alternating key/value pairs.
+// modulePath is fastecho's module path, used to find its version in the
+// consuming binary's build info.
+const modulePath = "github.com/ingka-group/fastecho"
+
+// version reports fastecho's module version from the consuming binary's build
+// info, or "dev" when unavailable (e.g. running from this repo's own tree).
+func version() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+	for _, dep := range info.Deps {
+		if dep.Path == modulePath && dep.Version != "" {
+			return dep.Version
+		}
+	}
+	return "dev"
+}
+
+// printBanner prints a startup section with a title and alternating key/value pairs.
+// Keys align to a 16-col gutter (wider when a key exceeds it) so sections line up.
 // Usage: printBanner("title", "key1", "value1", "key2", "value2")
 func printBanner(title string, kvs ...string) {
-	fmt.Printf("\n\033[1;36m⚡ %s\033[0m\n", title)
-	for i := 0; i < len(kvs)-1; i += 2 {
-		fmt.Printf("  \033[1;33m%-15s\033[0m : \033[1;32m%s\033[0m\n", kvs[i], kvs[i+1])
+	width := 16
+	for i := 0; i+1 < len(kvs); i += 2 {
+		if len(kvs[i]) > width {
+			width = len(kvs[i])
+		}
+	}
+	fmt.Printf("\n%s\n", title)
+	for i := 0; i+1 < len(kvs); i += 2 {
+		fmt.Printf("  %-*s : %s\n", width, kvs[i], kvs[i+1])
 	}
 }

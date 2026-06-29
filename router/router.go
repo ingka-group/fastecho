@@ -17,6 +17,8 @@ package router
 import (
 	"fmt"
 	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
@@ -165,12 +167,21 @@ func (r *Router) Setup() error {
 	return nil
 }
 
-// PrintRoutes prints all the available routes registered in the Echo framework.
+// PrintRoutes prints all the available routes registered in the Echo framework,
+// sorted by path then method so the boot output is stable across restarts.
 func (r *Router) PrintRoutes(e *echo.Echo) {
-	fmt.Println("\nRegistered routes:")
-	for _, route := range e.Routes() {
-		fmt.Println(route.Method, " ", route.Path)
+	routes := e.Routes()
+	slices.SortFunc(routes, func(a, b *echo.Route) int {
+		if a.Path != b.Path {
+			return strings.Compare(a.Path, b.Path)
+		}
+		return strings.Compare(a.Method, b.Method)
+	})
+	fmt.Println("\nRoutes configuration")
+	for _, route := range routes {
+		fmt.Printf("  %-6s %s\n", route.Method, route.Path)
 	}
+	fmt.Println()
 }
 
 // serveSwaggerUI serves the swagger UI.

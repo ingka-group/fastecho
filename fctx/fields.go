@@ -47,8 +47,3 @@ func Fields(ctx context.Context) []zap.Field {
 func NewRequestID() string {
 	return uuid.New().String()
 }
-
-// WithNewRequestID generates a new request id and stores it in ctx.
-func WithNewRequestID(ctx context.Context) context.Context {
-	return WithRequestID(ctx, NewRequestID())
-}
