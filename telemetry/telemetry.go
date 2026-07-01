@@ -66,14 +66,20 @@ type Providers struct {
 // Info is what Init resolved from OTEL_* env and the cfg toggles, for the caller
 // to log once at startup.
 type Info struct {
-	ServiceName     string
-	Traces          bool   // exporter active (not SkipTraces)
-	TracesExporter  string // OTEL_TRACES_EXPORTER (default "otlp")
-	OTLPProtocol    string // resolved transport: signal-specific var → general → "grpc"
-	OTLPEndpoint    string // resolved: OTEL_EXPORTER_OTLP_ENDPOINT, else the protocol's SDK default
+	ServiceName string
+
+	Traces         bool   // exporter active (not SkipTraces)
+	TracesExporter string // OTEL_TRACES_EXPORTER (default "otlp")
+	// OTLP transport for traces; set only when the exporter is OTLP.
+	TracesProtocol string
+	TracesEndpoint string
+
 	Metrics         bool
 	MetricsExporter string // OTEL_METRICS_EXPORTER (default "prometheus")
 	MetricsDelivery string // "pull (/metrics)" | "push" | "off"
+	// OTLP transport for metrics; set only when metrics push over OTLP.
+	MetricsProtocol string
+	MetricsEndpoint string
 }
 
 // Shutdown flushes and stops all providers. Nil-safe.
@@ -189,8 +195,12 @@ func newInfo(cfg Config) Info {
 		ServiceName:    os.Getenv("OTEL_SERVICE_NAME"),
 		Traces:         !cfg.SkipTraces,
 		TracesExporter: env.GetEnvVarOrDefault("OTEL_TRACES_EXPORTER", "otlp"),
-		OTLPProtocol:   otlpProtocol("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"),
-		OTLPEndpoint:   otlpEndpoint(),
+	}
+	// OTLP transport is only meaningful when the traces exporter is OTLP.
+	if info.Traces && info.TracesExporter == "otlp" {
+		proto := otlpProtocol("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL")
+		info.TracesProtocol = proto
+		info.TracesEndpoint = otlpEndpoint("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", proto)
 	}
 
 	me := metricsExporter()
@@ -204,6 +214,12 @@ func newInfo(cfg Config) Info {
 	default:
 		info.MetricsDelivery = "push"
 	}
+	// OTLP transport is only meaningful when metrics push over OTLP.
+	if info.Metrics && me == "otlp" {
+		proto := otlpProtocol("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL")
+		info.MetricsProtocol = proto
+		info.MetricsEndpoint = otlpEndpoint("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", proto)
+	}
 
 	return info
 }
@@ -214,10 +230,10 @@ func metricsExporter() string {
 	return env.GetEnvVarOrDefault("OTEL_METRICS_EXPORTER", "prometheus")
 }
 
-// otlpProtocol resolves the OTLP transport: the signal-specific var wins, then
-// OTEL_EXPORTER_OTLP_PROTOCOL. Defaults to grpc to match Init's backward-compat
-// default; reading only the general var would misreport once an operator sets
-// the signal-specific one.
+// otlpProtocol resolves the OTLP transport for a signal: the signal-specific var
+// wins, then OTEL_EXPORTER_OTLP_PROTOCOL. Defaults to grpc to match Init's
+// backward-compat default; reading only the general var would misreport once an
+// operator sets the signal-specific one.
 func otlpProtocol(signalKey string) string {
 	if v := os.Getenv(signalKey); v != "" {
 		return v
@@ -225,15 +241,18 @@ func otlpProtocol(signalKey string) string {
 	return env.GetEnvVarOrDefault("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
 }
 
-// otlpEndpoint reports the OTLP endpoint that will be dialed: the operator's
-// OTEL_EXPORTER_OTLP_ENDPOINT if set, else the SDK default for the resolved
-// protocol (grpc => :4317, http/protobuf => :4318). Reporting the default
-// rather than "(unset)" shows the address actually used.
-func otlpEndpoint() string {
+// otlpEndpoint reports the OTLP endpoint a signal will dial: the signal-specific
+// var wins, then OTEL_EXPORTER_OTLP_ENDPOINT, else the SDK default for the given
+// protocol (grpc => :4317, http/protobuf => :4318). Reporting the default rather
+// than "(unset)" shows the address actually used.
+func otlpEndpoint(signalKey, protocol string) string {
+	if v := os.Getenv(signalKey); v != "" {
+		return v
+	}
 	if v := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
 		return v
 	}
-	if otlpProtocol("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL") == "grpc" {
+	if protocol == "grpc" {
 		return "http://localhost:4317 (default)"
 	}
 	return "http://localhost:4318 (default)"

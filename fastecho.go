@@ -270,16 +270,30 @@ func (s *server) setupTelemetry(cfg *Config) error {
 
 // printTelemetryInfo logs the resolved telemetry configuration at startup.
 func printTelemetryInfo(info telemetry.Info) {
-	printBanner("Telemetry configuration",
+	kvs := []string{
 		"Service name", info.ServiceName,
-		"OTLP protocol", info.OTLPProtocol,
-		"OTLP endpoint", info.OTLPEndpoint,
+		"Traces enabled", strconv.FormatBool(info.Traces),
+		"Traces exporter", info.TracesExporter,
+	}
+	if info.TracesEndpoint != "" {
+		kvs = append(kvs,
+			"Traces OTLP protocol", info.TracesProtocol,
+			"Traces OTLP endpoint", info.TracesEndpoint,
+		)
+	}
+	kvs = append(kvs,
 		"Metrics enabled", strconv.FormatBool(info.Metrics),
 		"Metrics exporter", info.MetricsExporter,
 		"Metrics delivery", info.MetricsDelivery,
-		"Traces enabled", strconv.FormatBool(info.Traces),
-		"Traces exporter", info.TracesExporter,
 	)
+	if info.MetricsEndpoint != "" {
+		kvs = append(kvs,
+			"Metrics OTLP protocol", info.MetricsProtocol,
+			"Metrics OTLP endpoint", info.MetricsEndpoint,
+		)
+	}
+
+	printBanner("Telemetry configuration", kvs...)
 }
 
 // setupRouter builds the router and validator, then registers caller and plugin
