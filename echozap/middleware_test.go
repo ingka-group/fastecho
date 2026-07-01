@@ -53,7 +53,7 @@ func TestZapLoggerMiddleware(t *testing.T) {
 
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(400), logFields["status"])
-	assert.NotNil(t, logFields["latency"])
+	assert.IsType(t, float64(0), logFields["latency_ms"])
 	assert.Equal(t, "GET /something", logFields["request"])
 	assert.NotNil(t, logFields["host"])
 	assert.NotNil(t, logFields["size"])
@@ -137,7 +137,7 @@ func TestAccessLog_4xxCarriesRequestID(t *testing.T) {
 	assert.Equal(t, "req-1", logs.All()[0].ContextMap()["request_id"])
 }
 
-func TestAccessLog_2xxNotLogged(t *testing.T) {
+func TestAccessLog_2xxLoggedAtDebug(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 	e := echo.New()
 	e.Use(ZapLoggerMiddlewareWithConfig(zap.New(core), ZapLoggerMiddlewareConfig{}))
@@ -146,5 +146,9 @@ func TestAccessLog_2xxNotLogged(t *testing.T) {
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil))
 
-	assert.Equal(t, 0, logs.Len(), "2xx not logged")
+	require.Equal(t, 1, logs.Len(), "2xx logged")
+	got := logs.All()[0]
+	assert.Equal(t, zapcore.DebugLevel, got.Level, "2xx logged at Debug")
+	assert.Equal(t, "Success", got.Message)
+	assert.Equal(t, "/x", got.ContextMap()["path"], "path is the route template")
 }

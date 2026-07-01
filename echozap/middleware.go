@@ -81,9 +81,10 @@ func ZapLoggerMiddlewareWithConfig(log *zap.Logger, config ZapLoggerMiddlewareCo
 
 			fields := []zapcore.Field{
 				zap.String("remote_ip", c.RealIP()),
-				zap.String("latency", time.Since(start).String()),
+				zap.Float64("latency_ms", float64(time.Since(start))/float64(time.Millisecond)),
 				zap.String("host", req.Host),
 				zap.String("request", fmt.Sprintf("%s %s", req.Method, req.RequestURI)),
+				zap.String("path", c.Path()),
 				zap.Int("status", res.Status),
 				zap.Int64("size", res.Size),
 				zap.String("user_agent", req.UserAgent()),
@@ -98,7 +99,7 @@ func ZapLoggerMiddlewareWithConfig(log *zap.Logger, config ZapLoggerMiddlewareCo
 			case n >= 300:
 				logger.Info("Redirection", fields...)
 			default:
-				// noop: don't log successful requests
+				logger.Debug("Success", fields...)
 			}
 
 			return nil

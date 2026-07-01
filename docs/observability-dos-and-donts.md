@@ -24,7 +24,7 @@ The recommended way to use fastecho's telemetry, in brief. For *why* any of thes
 - **Do:** Use `fctx.Logger(ctx)` — it carries `trace_id`/`span_id`/`request_id`, so every line correlates to its trace.
 - **Don't:** use a package-level or global logger in request/worker code — you lose correlation.
 - **Do:** Set log levels with recognizable severities; the level field is lowercase (`info`/`warn`/`error`) so backends color-code it.
-- **Don't:** hand-log successful requests — the access log already covers 3xx+, and 2xx is intentionally quiet.
+- **Don't:** hand-log successful requests — the access log already covers every request, with 2xx at Debug and 3xx+ at higher levels.
 
 ## Metrics
 

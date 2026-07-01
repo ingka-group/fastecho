@@ -139,7 +139,7 @@ Logs **stay on zap** — structured JSON on stdout. There is intentionally **no 
 
 Logs now **carry the correlation fields** (`trace_id`/`span_id`/`request_id`) via `fctx.Fields`, so a log line links to its trace without any log exporter. The access log, the panic recover handler, and worker logs all use the same enrichment.
 
-The access log logs 3xx/4xx/5xx responses (2xx stays quiet) and keeps the error string on 5xx lines, so a failing request leaves both a log entry *and* an error on its span.
+The access log records every request: 5xx at Error, 4xx at Warn, 3xx at Info, and 2xx at Debug (so successful traffic is queryable when Debug is enabled but stays out of the way at higher levels). Lines carry a numeric `latency_ms`, the matched route template as `path`, and keep the error string on 5xx lines, so a failing request leaves both a log entry *and* an error on its span.
 
 ---
 

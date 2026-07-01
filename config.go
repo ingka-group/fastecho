@@ -48,23 +48,23 @@ type Opts struct {
 
 // MetricsOpts define configuration options for metrics.
 type MetricsOpts struct {
-	Skip bool
+	Skip bool `json:"skip"`
 }
 
 // TracingOpts define configuration options for tracing.
 type TracingOpts struct {
-	Skip bool
+	Skip bool `json:"skip"`
 }
 
 // LogsOpts define configuration options for logging.
 type LogsOpts struct {
-	Skip bool // disable the access-log middleware entirely
+	Skip bool `json:"skip"`
 }
 
 // HealthChecksOpts define configuration options for health checks.
 type HealthChecksOpts struct {
-	Skip bool
-	DB   *gorm.DB
+	Skip bool     `json:"skip"`
+	DB   *gorm.DB `json:"db,omitempty"`
 }
 
 type Plugin struct {

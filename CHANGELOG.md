@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format is based on
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0/) — while on `0.x`,
 minor releases may include breaking changes.
 
-## [Unreleased]
+## v0.16.0
 
 Observability moves fully onto OpenTelemetry: a single traces + metrics
 bootstrap, env-driven exporters and sampling, stable semantic conventions via
@@ -25,6 +25,9 @@ trace propagation.
   `traceparent` (via `otelhttp`) and `X-Request-Id`.
 - `Opts.Logs.Skip` — disable the access-log middleware.
 - Access-log lines now carry `trace_id`/`span_id`/`request_id`.
+- Access log now records 2xx requests at `Debug`, adds a numeric `latency_ms`
+  field, and adds `path` (the matched route template) as a low-cardinality
+  grouping key.
 
 ### Breaking changes
 
