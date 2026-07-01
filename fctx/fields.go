@@ -22,21 +22,22 @@ import (
 	"go.uber.org/zap"
 )
 
-// Fields returns the correlation fields for ctx: trace_id and span_id (when a
-// valid span context is present) and request_id (when set). Centralising them
-// here keeps middleware, the recover handler, and worker seeds consistent.
-// They are discrete, indexable log fields (not the traceparent wire header) so
-// the log backend can query by trace_id and link a line to its trace.
+// Fields returns the correlation fields for ctx, shared by middleware, the
+// recover handler, and worker seeds. They are discrete, indexable log fields
+// (not the traceparent wire header) so the backend can query by trace_id.
 func Fields(ctx context.Context) []zap.Field {
 	var fields []zap.Field
 
 	if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
 		fields = append(fields,
+			// trace_id: correlates logs and spans across services for one request.
 			zap.String("trace_id", sc.TraceID().String()),
+			// span_id: the specific operation within that trace.
 			zap.String("span_id", sc.SpanID().String()),
 		)
 	}
 	if id := RequestID(ctx); id != "" {
+		// request_id: our own per-request id, for correlation without a sampled trace.
 		fields = append(fields, zap.String("request_id", id))
 	}
 	return fields
