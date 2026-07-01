@@ -263,6 +263,13 @@ func (s *server) setupTelemetry(cfg *Config) error {
 	}
 	s.Providers = providers
 
+	printTelemetryInfo(info)
+
+	return nil
+}
+
+// printTelemetryInfo logs the resolved telemetry configuration at startup.
+func printTelemetryInfo(info telemetry.Info) {
 	printBanner("Telemetry configuration",
 		"Service name", info.ServiceName,
 		"OTLP protocol", info.OTLPProtocol,
@@ -273,8 +280,6 @@ func (s *server) setupTelemetry(cfg *Config) error {
 		"Traces enabled", strconv.FormatBool(info.Traces),
 		"Traces exporter", info.TracesExporter,
 	)
-
-	return nil
 }
 
 // setupRouter builds the router and validator, then registers caller and plugin

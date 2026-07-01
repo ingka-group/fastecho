@@ -22,7 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
-	"go.opentelemetry.io/contrib/instrumentation/runtime"
+	otelruntime "go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	promexporter "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
@@ -69,7 +69,7 @@ type Info struct {
 	ServiceName     string
 	Traces          bool   // exporter active (not SkipTraces)
 	TracesExporter  string // OTEL_TRACES_EXPORTER (default "otlp")
-	OTLPProtocol    string // resolved transport: signal-specific var → general → "http/protobuf"
+	OTLPProtocol    string // resolved transport: signal-specific var → general → "grpc"
 	OTLPEndpoint    string // resolved: OTEL_EXPORTER_OTLP_ENDPOINT, else the protocol's SDK default
 	Metrics         bool
 	MetricsExporter string // OTEL_METRICS_EXPORTER (default "prometheus")
@@ -85,7 +85,7 @@ func (p *Providers) Shutdown(ctx context.Context) error {
 }
 
 // Init builds the providers from OTEL_* env and returns them with one shutdown,
-// plus an info snapshot of what it resolved for the caller to log at startup.
+// plus an Info snapshot of what it resolved for the caller to log at startup.
 func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
 	// Preserve fastecho's historical gRPC default. autoexport reads
 	// OTEL_EXPORTER_OTLP_PROTOCOL itself to pick the transport for BOTH the trace
@@ -150,7 +150,7 @@ func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
 		p.MeterProvider = mp
 		closers = append(closers, mp.Shutdown)
 
-		if err := runtime.Start(runtime.WithMeterProvider(mp)); err != nil {
+		if err = otelruntime.Start(otelruntime.WithMeterProvider(mp)); err != nil {
 			return nil, Info{}, err
 		}
 	}
@@ -179,6 +179,12 @@ func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
 		return firstErr
 	}
 
+	return p, newInfo(cfg), nil
+}
+
+// newInfo snapshots what Init resolved from OTEL_* env and the cfg toggles, for
+// the caller to log once at startup.
+func newInfo(cfg Config) Info {
 	info := Info{
 		ServiceName:    os.Getenv("OTEL_SERVICE_NAME"),
 		Traces:         !cfg.SkipTraces,
@@ -199,7 +205,7 @@ func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
 		info.MetricsDelivery = "push"
 	}
 
-	return p, info, nil
+	return info
 }
 
 // metricsExporter returns the configured metrics exporter, defaulting to
