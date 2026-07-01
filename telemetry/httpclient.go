@@ -17,6 +17,7 @@ package telemetry
 import (
 	"net/http"
 
+	"github.com/labstack/echo/v4"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/ingka-group/fastecho/fctx"
@@ -51,8 +52,8 @@ func (t requestIDTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	// The RoundTripper contract forbids mutating the caller's request; otelhttp
 	// (the wrapped base) also injects headers, so hand everything below a clone.
 	req = req.Clone(req.Context())
-	if id := fctx.RequestID(req.Context()); id != "" && req.Header.Get("X-Request-Id") == "" {
-		req.Header.Set("X-Request-Id", id)
+	if id := fctx.RequestID(req.Context()); id != "" && req.Header.Get(echo.HeaderXRequestID) == "" {
+		req.Header.Set(echo.HeaderXRequestID, id)
 	}
 	return t.base.RoundTrip(req)
 }
