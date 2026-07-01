@@ -43,8 +43,7 @@ func Fields(ctx context.Context) []zap.Field {
 	return fields
 }
 
-// NewRequestID returns a fresh UUIDv4 request id. One format everywhere: HTTP
-// uses it as Echo's request-id Generator, workers via WithNewRequestID.
+// NewRequestID returns a fresh UUIDv4 request id
 func NewRequestID() string {
 	return uuid.New().String()
 }

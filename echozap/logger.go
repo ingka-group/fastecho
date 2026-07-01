@@ -52,10 +52,7 @@ func New() (*zap.Logger, error) {
 	// Override log level based on fastecho logic above
 	config.Level = zap.NewAtomicLevelAt(ZapLevel(level))
 
-	// A log backend color-codes lines by a lowercase `level` value
-	// (trace/debug/info/warn/error/fatal). Pipelines that promote the JSON
-	// `level` field to a label match on lowercase; "INFO" is unrecognised and
-	// renders uncoloured.
+	// Use lowercase to prevent flakiness in log coloring in common tooling like Loki.
 	config.EncoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
 
 	// Use human-readable timestamp
