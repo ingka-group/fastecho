@@ -251,6 +251,7 @@ func (r *recordingSyncer) didSync() bool {
 }
 
 func TestInitialize_HasProvidersAndShutdownIsSafe(t *testing.T) {
+	t.Setenv("OTEL_SERVICE_NAME", "fastecho-test")
 	t.Setenv("OTEL_TRACES_EXPORTER", "none")
 	fe, err := Initialize(&Config{})
 	require.NoError(t, err)
@@ -258,7 +259,20 @@ func TestInitialize_HasProvidersAndShutdownIsSafe(t *testing.T) {
 	require.NoError(t, fe.Shutdown(gocontext.Background()))
 }
 
+// OTEL_SERVICE_NAME is mandatory once tracing or metrics is enabled: the
+// otelecho middleware needs a service name to attribute spans and metrics to.
+func TestInitialize_RequiresServiceNameWhenTelemetryEnabled(t *testing.T) {
+	t.Setenv("OTEL_TRACES_EXPORTER", "none")
+	t.Setenv("OTEL_METRICS_EXPORTER", "none")
+	os.Unsetenv("OTEL_SERVICE_NAME")
+
+	_, err := Initialize(&Config{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OTEL_SERVICE_NAME")
+}
+
 func TestMetricsEndpointStillServed(t *testing.T) {
+	t.Setenv("OTEL_SERVICE_NAME", "fastecho-test")
 	t.Setenv("OTEL_TRACES_EXPORTER", "none")
 	t.Setenv("OTEL_METRICS_EXPORTER", "prometheus")
 
@@ -284,6 +298,7 @@ func TestMetricsEndpointStillServed(t *testing.T) {
 }
 
 func TestMetricsEndpointNotMountedWithoutPrometheus(t *testing.T) {
+	t.Setenv("OTEL_SERVICE_NAME", "fastecho-test")
 	t.Setenv("OTEL_TRACES_EXPORTER", "none")
 	t.Setenv("OTEL_METRICS_EXPORTER", "none") // not prometheus => nil gatherer => no /metrics
 
@@ -320,6 +335,7 @@ func TestOtelecho_RecordsRoutePattern(t *testing.T) {
 }
 
 func TestRecover_PanicReturns500(t *testing.T) {
+	t.Setenv("OTEL_SERVICE_NAME", "fastecho-test")
 	t.Setenv("OTEL_TRACES_EXPORTER", "none")
 	t.Setenv("OTEL_METRICS_EXPORTER", "none")
 

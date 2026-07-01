@@ -47,6 +47,7 @@ const (
 	port            = "PORT"
 	swaggerUITitle  = "SWAGGER_UI_TITLE"
 	swaggerJSONPath = "SWAGGER_JSON_PATH"
+	otelServiceName = "OTEL_SERVICE_NAME"
 )
 
 const (
@@ -184,96 +185,74 @@ func newServer(cfg *Config) (*server, error) {
 	return s, nil
 }
 
-// setup sets up the service with the given environment variables and an optional postgres db layer
-func (s *server) setup(cfg *Config) error {
-	var err error
-
-	// set up echo
+// setup wires the server in dependency order: env, logger, telemetry, middlewares, and routes.
+func (s *server) setup(cfg *Config) (err error) {
 	s.Echo = echo.New()
 	s.Echo.HideBanner = true
 
-	// config the service
-	err = s.config(cfg)
-	if err != nil {
+	if err = s.loadEnv(cfg); err != nil {
 		return err
 	}
+	if err = s.setupLogger(); err != nil {
+		return err
+	}
+	if err = s.setupTelemetry(cfg); err != nil {
+		return err
+	}
+	defer func() {
+		// only shutdown if we errored prematurely
+		if err != nil {
+			_ = s.Providers.Shutdown(context.Background())
+		}
+	}()
 
-	// set up middlewares
 	s.middlewares(cfg)
 
-	// Print log level configuration at startup
-	logLevel := env.GetLogLevel()
-	printBanner("Log configuration",
-		"LOG_LEVEL (env)", logLevel,
-		"EchoZap level", s.Logger.Level().String(),
-	)
-
-	fastechoRouter, err := router.NewRouter(
-		router.Config{
-			Echo:             s.Echo,
-			Routes:           cfg.Routes,
-			SkipMetrics:      cfg.Opts.Metrics.Skip,
-			SkipHealthChecks: cfg.Opts.HealthChecks.Skip,
-			HealthChecksDB:   cfg.Opts.HealthChecks.DB,
-			SwaggerTitle:     envs[swaggerUITitle].Value,
-			SwaggerPath:      envs[swaggerJSONPath].Value,
-			MetricsGatherer:  s.Providers.PrometheusGatherer,
-		},
-	)
-	if err != nil {
+	if err = s.setupRouter(cfg); err != nil {
 		return err
 	}
 
-	// set up validation
-	vdt, err := router.NewValidator()
-	if err != nil {
-		return err
-	}
-	if cfg.ValidationRegistrar != nil {
-		// register custom validations
-		err = cfg.ValidationRegistrar(vdt)
-		if err != nil {
-			return err
-		}
-	}
-	// register plugin validations and routes
-	for _, plugin := range cfg.Plugins {
-		if plugin.ValidationRegistrar != nil {
-			err = plugin.ValidationRegistrar(vdt)
-			if err != nil {
-				return errors.New("error registering plugin validation: " + err.Error())
-			}
-		}
-		// Register plugin routes
-		fmt.Println("Registering plugin routes")
-		err = plugin.Routes(s.Echo, fastechoRouter)
-		if err != nil {
-			return errors.New("error registering plugin routes: " + err.Error())
-		}
-	}
-	s.Echo.Validator = vdt
-	s.Router = fastechoRouter
 	s.Workers = cfg.Workers
-
-	return err
+	return nil
 }
 
-func (s *server) config(cfg *Config) error {
-	var allEnvs = make(env.Map)
+// loadEnv merges the framework envs with any caller-supplied extras and exports
+// them, so every later phase can read its configuration from the environment.
+func (s *server) loadEnv(cfg *Config) error {
+	allEnvs := make(env.Map)
 	maps.Copy(allEnvs, envs)
 	maps.Copy(allEnvs, cfg.ExtraEnvs)
 
-	err := allEnvs.SetEnv()
-	if err != nil {
-		return err
+	// A named service is mandatory once any signal is on: otherwise the OTel SDK
+	// falls back to service.name="unknown_service", collapsing every unnamed
+	// service together in the backend.
+	if !cfg.Opts.Tracing.Skip || !cfg.Opts.Metrics.Skip {
+		allEnvs[otelServiceName] = &env.Var{}
 	}
 
+	return allEnvs.SetEnv()
+}
+
+// setupLogger builds the zap logger and reports the resolved log level.
+func (s *server) setupLogger() error {
 	logger, err := echozap.New()
 	if err != nil {
 		return err
 	}
 	s.Logger = logger
 
+	printBanner("Log configuration",
+		"LOG_LEVEL (env)", env.GetLogLevel(),
+		"EchoZap level", s.Logger.Level().String(),
+	)
+
+	return nil
+}
+
+// setupTelemetry starts the telemetry providers and reports what the SDK
+// resolved from the environment. The mandatory OTEL_SERVICE_NAME is enforced
+// earlier, in loadEnv.
+func (s *server) setupTelemetry(cfg *Config) error {
 	providers, info, err := telemetry.Init(context.Background(), telemetry.Config{
 		SetGlobal:   true,
 		SkipTraces:  cfg.Opts.Tracing.Skip,
@@ -294,6 +273,53 @@ func (s *server) config(cfg *Config) error {
 		"Traces enabled", strconv.FormatBool(info.Traces),
 		"Traces exporter", info.TracesExporter,
 	)
+
+	return nil
+}
+
+// setupRouter builds the router and validator, then registers caller and plugin
+// routes and validations onto them.
+func (s *server) setupRouter(cfg *Config) error {
+	fastechoRouter, err := router.NewRouter(
+		router.Config{
+			Echo:             s.Echo,
+			Routes:           cfg.Routes,
+			SkipMetrics:      cfg.Opts.Metrics.Skip,
+			SkipHealthChecks: cfg.Opts.HealthChecks.Skip,
+			HealthChecksDB:   cfg.Opts.HealthChecks.DB,
+			SwaggerTitle:     envs[swaggerUITitle].Value,
+			SwaggerPath:      envs[swaggerJSONPath].Value,
+			MetricsGatherer:  s.Providers.PrometheusGatherer,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	vdt, err := router.NewValidator()
+	if err != nil {
+		return err
+	}
+	if cfg.ValidationRegistrar != nil {
+		if err = cfg.ValidationRegistrar(vdt); err != nil {
+			return err
+		}
+	}
+
+	for _, plugin := range cfg.Plugins {
+		if plugin.ValidationRegistrar != nil {
+			if err = plugin.ValidationRegistrar(vdt); err != nil {
+				return errors.New("error registering plugin validation: " + err.Error())
+			}
+		}
+		fmt.Println("Registering plugin routes")
+		if err = plugin.Routes(s.Echo, fastechoRouter); err != nil {
+			return errors.New("error registering plugin routes: " + err.Error())
+		}
+	}
+
+	s.Echo.Validator = vdt
+	s.Router = fastechoRouter
 
 	return nil
 }
@@ -330,7 +356,7 @@ func (s *server) middlewares(cfg *Config) {
 	// 3. otelecho trace + metrics, registered only when a signal is on.
 	if !cfg.Opts.Tracing.Skip || !cfg.Opts.Metrics.Skip {
 		s.Echo.Use(otelecho.Middleware(
-			env.GetEnvVarOrDefault("OTEL_SERVICE_NAME", "fastecho"),
+			"", // Left blank as it derives server.address from the request Host
 			otelecho.WithTracerProvider(s.Providers.TracerProvider),
 			otelecho.WithMeterProvider(s.Providers.MeterProvider),
 			otelecho.WithSkipper(skip),
