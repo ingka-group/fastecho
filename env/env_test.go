@@ -23,44 +23,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SetEnv must export resolved values (defaults included) back to the process
-// environment, so os.Getenv-based readers - e.g. the OTel SDK - observe the
-// same value the Map resolved.
-func TestSetEnv_ExportsResolvedDefaultToProcessEnv(t *testing.T) {
-	const key = "FASTECHO_TEST_EXPORT_DEFAULT"
+// SetEnv is a pure resolver: it fills the Map from the environment (or the
+// declared defaults) and must never write back to the process environment —
+// that would leak fastecho's defaults to other libraries and child processes.
+func TestSetEnv_DoesNotMutateProcessEnv(t *testing.T) {
+	const key = "FASTECHO_TEST_NO_EXPORT"
 	os.Unsetenv(key)
 	t.Cleanup(func() { os.Unsetenv(key) })
 
 	m := Map{key: {DefaultValue: "resolved"}}
 	require.NoError(t, m.SetEnv())
 
-	assert.Equal(t, "resolved", os.Getenv(key), "default must be exported to the environment")
-	assert.Equal(t, "resolved", m[key].Value)
+	assert.Equal(t, "resolved", m[key].Value, "default resolves into the Map")
+	_, present := os.LookupEnv(key)
+	assert.False(t, present, "SetEnv must not export resolved values to the process env")
 }
 
-// An explicit value wins over the default and is exported unchanged.
-func TestSetEnv_ExportsExplicitValue(t *testing.T) {
-	const key = "FASTECHO_TEST_EXPORT_EXPLICIT"
+// An explicit value wins over the default.
+func TestSetEnv_ExplicitValueWinsOverDefault(t *testing.T) {
+	const key = "FASTECHO_TEST_EXPLICIT"
 	t.Setenv(key, "explicit")
 
 	m := Map{key: {DefaultValue: "resolved"}}
 	require.NoError(t, m.SetEnv())
 
-	assert.Equal(t, "explicit", os.Getenv(key))
-}
-
-// An optional var with no value must stay unset rather than be exported empty,
-// so the OTel SDK still treats it as absent.
-func TestSetEnv_OptionalEmptyStaysUnset(t *testing.T) {
-	const key = "FASTECHO_TEST_EXPORT_OPTIONAL"
-	os.Unsetenv(key)
-	t.Cleanup(func() { os.Unsetenv(key) })
-
-	m := Map{key: {Optional: true}}
-	require.NoError(t, m.SetEnv())
-
-	_, present := os.LookupEnv(key)
-	assert.False(t, present, "optional unset var must not be exported")
+	assert.Equal(t, "explicit", m[key].Value)
 }
 
 func TestGetLogLevel(t *testing.T) {

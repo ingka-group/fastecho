@@ -39,7 +39,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/ingka-group/fastecho/env"
 	"github.com/ingka-group/fastecho/internal/banner"
 )
 
@@ -56,20 +55,31 @@ const (
 	otelOTLPMetricsEndpoint = "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"
 )
 
-// otelEnv returns fastecho's OTEL_* compat defaults for the enabled signals
-// only, so skipped telemetry never mutates the process environment.
-func otelEnv(cfg Config) env.Map {
-	vars := env.Map{otelServiceName: {Optional: true}}
+// applyOTelEnvDefaults writes fastecho's OTEL_* compat defaults into the
+// process environment, because that is the only channel the OTel SDK and
+// autoexport read configuration from. Only unset vars are defaulted, and only
+// for enabled signals, so operators keep full control and skipped telemetry
+// leaves the environment untouched.
+func applyOTelEnvDefaults(cfg Config) error {
+	defaults := map[string]string{}
 	if !cfg.SkipTraces {
-		vars[otelTracesExporter] = &env.Var{DefaultValue: "otlp"}
+		defaults[otelTracesExporter] = "otlp"
 	}
 	if !cfg.SkipMetrics {
-		vars[otelMetricsExporter] = &env.Var{DefaultValue: "prometheus"}
+		defaults[otelMetricsExporter] = "prometheus"
 	}
 	if !cfg.SkipTraces || !cfg.SkipMetrics {
-		vars[otelOTLPProtocol] = &env.Var{DefaultValue: "grpc"}
+		defaults[otelOTLPProtocol] = "grpc"
 	}
-	return vars
+	for name, value := range defaults {
+		if os.Getenv(name) != "" {
+			continue
+		}
+		if err := os.Setenv(name, value); err != nil {
+			return fmt.Errorf("could not default %s: %w", name, err)
+		}
+	}
+	return nil
 }
 
 // Config carries only wiring that has no env equivalent; behavior values
@@ -106,8 +116,8 @@ func (p *Providers) Shutdown(ctx context.Context) error {
 // signal leaves an application's own OTel setup untouched.
 // Call PrintConfiguration to log what it resolved.
 func Init(ctx context.Context, cfg Config) (*Providers, error) {
-	// Export the OTEL_* defaults so autoexport and the report read the same values.
-	if err := otelEnv(cfg).SetEnv(); err != nil {
+	// Default the OTEL_* env so autoexport and the report read the same values.
+	if err := applyOTelEnvDefaults(cfg); err != nil {
 		return nil, err
 	}
 

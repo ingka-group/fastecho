@@ -43,13 +43,10 @@ type Var struct {
 	Optional     bool // controls whether an env variable can be missing from the .env file but still declared
 }
 
-// SetEnv reads and sets the provided list of env vars based on the Map.
-//
-// Every resolved value — defaults included — is exported back to the process
-// environment via os.Setenv, so os.Getenv readers (the OTel SDK, this module's
-// own consumers) observe exactly what the Map resolved. The exports are
-// process-wide: other libraries and child processes see them too, so only
-// declare variables (and defaults) the process should genuinely run with.
+// SetEnv resolves the declared vars from the environment (or their defaults)
+// into the Map and validates them. It is a pure resolver: the process
+// environment is never written, so defaults stay private to the Map and are
+// not seen by other libraries or child processes.
 func (m Map) SetEnv() error {
 	var messages []string
 
@@ -99,16 +96,6 @@ func (m Map) SetEnv() error {
 
 		metadata.Value = value
 		m[name] = metadata
-
-		// Export resolved values so os.Getenv readers (e.g. the OTel SDK) see
-		// what the Map resolved. Empty stays unset.
-		if value != "" {
-			if err := os.Setenv(name, value); err != nil {
-				messages = append(messages,
-					fmt.Sprintf("variable `%s` could not be exported: %v", name, err),
-				)
-			}
-		}
 	}
 
 	if len(messages) > 0 {

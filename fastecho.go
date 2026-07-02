@@ -218,7 +218,7 @@ func (s *server) setup(cfg *Config) (err error) {
 	return nil
 }
 
-// loadEnv merges the framework envs with any caller-supplied extras, exports
+// loadEnv merges the framework envs with any caller-supplied extras, resolves
 // them, and keeps the resolved map on the server for every later phase.
 func (s *server) loadEnv(cfg *Config) error {
 	allEnvs := make(env.Map)
