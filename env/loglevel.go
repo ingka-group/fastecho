@@ -14,6 +14,12 @@
 
 package env
 
+import (
+	"os"
+
+	"github.com/ingka-group/fastecho/internal/stringutils"
+)
+
 const (
 	// LogLevel is the environment variable name for the log level.
 	LogLevel = "LOG_LEVEL"
@@ -23,11 +29,22 @@ const (
 	ProdLogLevel = "prod"
 )
 
+var logLevels = []string{DevLogLevel, TestLogLevel, ProdLogLevel}
+
 // NewLogLevelVar returns the canonical LOG_LEVEL variable: defaults to dev,
 // constrained to the known levels. Fresh *Var per call so Maps don't alias it.
 func NewLogLevelVar() *Var {
 	return &Var{
 		DefaultValue: DevLogLevel,
-		OneOf:        []string{DevLogLevel, TestLogLevel, ProdLogLevel},
+		OneOf:        logLevels,
 	}
+}
+
+// GetLogLevel reads LOG_LEVEL, falling back to dev when unset or unknown.
+func GetLogLevel() string {
+	level := os.Getenv(LogLevel)
+	if !stringutils.ExistsInSlice(level, logLevels) {
+		return DevLogLevel
+	}
+	return level
 }

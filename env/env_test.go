@@ -61,3 +61,30 @@ func TestSetEnv_OptionalEmptyStaysUnset(t *testing.T) {
 	_, present := os.LookupEnv(key)
 	assert.False(t, present, "optional unset var must not be exported")
 }
+
+func TestGetLogLevel(t *testing.T) {
+	tests := []struct {
+		name string
+		set  string
+		want string
+	}{
+		{name: "unset", want: DevLogLevel},
+		{name: "invalid", set: "verbose", want: DevLogLevel},
+		{name: "dev", set: DevLogLevel, want: DevLogLevel},
+		{name: "test", set: TestLogLevel, want: TestLogLevel},
+		{name: "prod", set: ProdLogLevel, want: ProdLogLevel},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.set == "" {
+				os.Unsetenv(LogLevel)
+				t.Cleanup(func() { os.Unsetenv(LogLevel) })
+			} else {
+				t.Setenv(LogLevel, tc.set)
+			}
+
+			assert.Equal(t, tc.want, GetLogLevel())
+		})
+	}
+}

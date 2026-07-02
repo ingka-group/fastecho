@@ -15,8 +15,6 @@
 package echozap
 
 import (
-	"os"
-
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -39,7 +37,7 @@ func ZapLevel(level string) zapcore.Level {
 // It configures a JSON structured logger that writes info messages to stdout.
 // The level is read from LOG_LEVEL, defaulting to dev when unset or unknown.
 func New() (*zap.Logger, error) {
-	level := os.Getenv(env.LogLevel)
+	level := env.GetLogLevel()
 
 	var config zap.Config
 	if level == env.ProdLogLevel {
