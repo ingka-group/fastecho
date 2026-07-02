@@ -142,8 +142,8 @@ func (fe *FastEcho) Handler() http.Handler {
 // always attempted and their errors joined - a telemetry-flush error must not
 // skip draining in-flight HTTP requests.
 func (fe *FastEcho) Shutdown(ctx context.Context) error {
-	provErr := fe.server.Providers.Shutdown(ctx)
 	echoErr := fe.server.Echo.Shutdown(ctx)
+	provErr := fe.server.Providers.Shutdown(ctx)
 	return errors.Join(provErr, echoErr)
 }
 

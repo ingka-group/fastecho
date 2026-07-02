@@ -77,7 +77,13 @@ func ZapLoggerMiddlewareWithConfig(log *zap.Logger, config ZapLoggerMiddlewareCo
 			req := c.Request()
 			res := c.Response()
 
-			logger := log.With(fctx.Fields(c.Request().Context())...)
+			correlationFields := fctx.Fields(req.Context())
+			if fctx.RequestID(req.Context()) == "" {
+				if reqID := res.Header().Get(echo.HeaderXRequestID); reqID != "" {
+					correlationFields = append(correlationFields, zap.String("request_id", reqID))
+				}
+			}
+			logger := log.With(correlationFields...)
 
 			fields := []zapcore.Field{
 				zap.String("remote_ip", c.RealIP()),

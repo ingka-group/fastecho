@@ -137,6 +137,22 @@ func TestAccessLog_4xxCarriesRequestID(t *testing.T) {
 	assert.Equal(t, "req-1", logs.All()[0].ContextMap()["request_id"])
 }
 
+func TestAccessLog_UsesResponseRequestIDWhenContextHasNone(t *testing.T) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	e := echo.New()
+	e.Use(ZapLoggerMiddlewareWithConfig(zap.New(core), ZapLoggerMiddlewareConfig{}))
+	e.GET("/x", func(c echo.Context) error {
+		c.Response().Header().Set(echo.HeaderXRequestID, "header-req")
+		return c.String(http.StatusBadRequest, "bad")
+	})
+
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil))
+
+	require.Equal(t, 1, logs.Len())
+	assert.Equal(t, "header-req", logs.All()[0].ContextMap()["request_id"])
+}
+
 func TestAccessLog_2xxLoggedAtDebug(t *testing.T) {
 	core, logs := observer.New(zapcore.DebugLevel)
 	e := echo.New()

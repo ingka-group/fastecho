@@ -255,6 +255,7 @@ func TestRunWorkerOnce_SeedsContext(t *testing.T) {
 	assert.Equal(t, "widget-worker", spanAttrs["worker"], "worker spans carry worker=<name>")
 	require.Equal(t, 1, logs.FilterMessage("working").Len())
 	assert.Equal(t, "widget-worker", logs.All()[0].ContextMap()["worker"])
+	assert.Equal(t, gotReqID, logs.All()[0].ContextMap()["request_id"])
 }
 
 func TestRunWorkerOnce_RecordsFailureMetric(t *testing.T) {

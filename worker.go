@@ -77,7 +77,10 @@ func (s *server) runWorker(ctx context.Context, name string, w Worker) {
 // runWorkerOnce runs a worker exactly once, recovering panics and logging any
 // error so that one worker cannot crash the process or affect the others.
 func (s *server) runWorkerOnce(ctx context.Context, name string, w Worker) {
-	ctx = fctx.WithLogger(ctx, s.Logger.With(zap.String("worker", name)))
+	// Fresh request id per run, so each restart's logs/spans correlate to that run.
+	ctx = fctx.WithRequestID(ctx, fctx.NewRequestID())
+	fields := append(fctx.Fields(ctx), zap.String("worker", name))
+	ctx = fctx.WithLogger(ctx, s.Logger.With(fields...))
 
 	// Seed a tracer that stamps worker=<name> on every span; worker spans are
 	// roots (no inbound request), so this label is how you find all runs of a
@@ -86,9 +89,6 @@ func (s *server) runWorkerOnce(ctx context.Context, name string, w Worker) {
 		Tracer: s.Providers.TracerProvider.Tracer(telemetry.ScopeName),
 		attrs:  []attribute.KeyValue{attribute.String("worker", name)},
 	})
-
-	// Fresh request id per run, so each restart's logs/spans correlate to that run.
-	ctx = fctx.WithRequestID(ctx, fctx.NewRequestID())
 
 	defer func() {
 		if r := recover(); r != nil {
