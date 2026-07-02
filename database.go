@@ -28,6 +28,7 @@ import (
 	"gorm.io/gorm/logger"
 
 	"github.com/ingka-group/fastecho/env"
+	"github.com/ingka-group/fastecho/internal/banner"
 )
 
 const (
@@ -90,7 +91,9 @@ func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 		lifetime = time.Hour
 	}
 
-	logLevel := dbEnvs[env.LogLevel].Value
+	// Normalized read: an unknown LOG_LEVEL warns and falls back to dev instead
+	// of failing NewDB.
+	logLevel := env.GetLogLevel()
 
 	dbConf := &dbConfig{
 		Hostname:        dbEnvs[dbHostname].Value,
@@ -111,9 +114,10 @@ func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 	}
 
 	_, gormLevelStr := gormLogLevel(logLevel)
-	fmt.Println("\nDatabase configuration")
-	fmt.Printf("  %-16s : %s\n", "LOG_LEVEL (env)", logLevel)
-	fmt.Printf("  %-16s : %s\n", "GORM level", gormLevelStr)
+	banner.Section("Database configuration",
+		"LOG_LEVEL (env)", logLevel,
+		"GORM level", gormLevelStr,
+	)
 
 	sqlDb, err := db.DB()
 	if err != nil {

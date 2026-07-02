@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"strings"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
@@ -29,20 +30,30 @@ import (
 // ScopeName is the instrumentation scope name for fastecho's own spans.
 const ScopeName = "github.com/ingka-group/fastecho/"
 
+// tracer returns the fctx-seeded tracer when present (a request or worker
+// context), else the global provider's — so spans from unseeded contexts
+// (background jobs, cron callbacks) still export when tracing is enabled.
+func tracer(ctx context.Context) trace.Tracer {
+	if t, ok := fctx.TracerFrom(ctx); ok {
+		return t
+	}
+	return otel.GetTracerProvider().Tracer(ScopeName)
+}
+
 // StartSpan starts a child span named after the calling function (formatted as
 // package.Type.Method, e.g. "forecast.Service.Recompute") and returns the updated
 // context and span; end it with defer span.End(). It uses the tracer from
-// fctx.Tracer(ctx), falling back to a no-op. For a custom name, call SpanFunc or
-// the OTel tracer API directly.
+// fctx.Tracer(ctx), falling back to the global provider. For a custom name, call
+// SpanFunc or the OTel tracer API directly.
 func StartSpan(ctx context.Context, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return fctx.Tracer(ctx).Start(ctx, callerName(1), opts...)
+	return tracer(ctx).Start(ctx, callerName(1), opts...)
 }
 
 // SpanFunc runs fn inside a span named name, for tracing work that has no
 // context.Context to thread. A panic in fn is recorded on the span and re-raised.
 // With tracing off, fn still runs under a no-op span.
 func SpanFunc(ctx context.Context, name string, fn func()) {
-	_, span := fctx.Tracer(ctx).Start(ctx, name)
+	_, span := tracer(ctx).Start(ctx, name)
 	defer span.End()
 	defer func() {
 		if r := recover(); r != nil {

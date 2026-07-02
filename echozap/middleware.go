@@ -77,15 +77,26 @@ func ZapLoggerMiddlewareWithConfig(log *zap.Logger, config ZapLoggerMiddlewareCo
 			req := c.Request()
 			res := c.Response()
 
-			correlationFields := fctx.Fields(req.Context())
-			if fctx.RequestID(req.Context()) == "" {
-				if reqID := res.Header().Get(echo.HeaderXRequestID); reqID != "" {
-					correlationFields = append(correlationFields, zap.String("request_id", reqID))
-				}
+			var lvl zapcore.Level
+			var msg string
+			switch n := res.Status; {
+			case n >= 500:
+				lvl, msg = zapcore.ErrorLevel, "Server error"
+			case n >= 400:
+				lvl, msg = zapcore.WarnLevel, "Client error"
+			case n >= 300:
+				lvl, msg = zapcore.InfoLevel, "Redirection"
+			default:
+				lvl, msg = zapcore.DebugLevel, "Success"
 			}
-			logger := log.With(correlationFields...)
+			// Check before building any field: at prod level every 2xx line is
+			// dropped, and this keeps that hot path allocation-free.
+			ce := log.Check(lvl, msg)
+			if ce == nil {
+				return nil
+			}
 
-			fields := []zapcore.Field{
+			fields := append(fctx.Fields(req.Context()),
 				zap.String("remote_ip", c.RealIP()),
 				zap.Float64("latency_ms", float64(time.Since(start))/float64(time.Millisecond)),
 				zap.String("host", req.Host),
@@ -94,19 +105,18 @@ func ZapLoggerMiddlewareWithConfig(log *zap.Logger, config ZapLoggerMiddlewareCo
 				zap.Int("status", res.Status),
 				zap.Int64("size", res.Size),
 				zap.String("user_agent", req.UserAgent()),
+			)
+			if fctx.RequestID(req.Context()) == "" {
+				if reqID := res.Header().Get(echo.HeaderXRequestID); reqID != "" {
+					fields = append(fields, zap.String("request_id", reqID))
+				}
 			}
-
-			n := res.Status
-			switch {
-			case n >= 500:
-				logger.With(zap.Error(err)).Error("Server error", fields...)
-			case n >= 400:
-				logger.With(zap.Error(err)).Warn("Client error", fields...)
-			case n >= 300:
-				logger.Info("Redirection", fields...)
-			default:
-				logger.Debug("Success", fields...)
+			if res.Status >= 400 {
+				// zap.Error(nil) is a no-op field, so a handler writing the
+				// status directly doesn't add an empty error.
+				fields = append(fields, zap.Error(err))
 			}
+			ce.Write(fields...)
 
 			return nil
 		}

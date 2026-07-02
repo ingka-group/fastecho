@@ -15,6 +15,7 @@
 package env
 
 import (
+	"io"
 	"os"
 	"testing"
 
@@ -87,4 +88,34 @@ func TestGetLogLevel(t *testing.T) {
 			assert.Equal(t, tc.want, GetLogLevel())
 		})
 	}
+}
+
+// A set-but-unknown LOG_LEVEL must not fail startup: it resolves as-is and the
+// consumers normalize it via GetLogLevel (warn + dev), matching pre-OTel
+// releases.
+func TestSetEnv_AcceptsUnknownLogLevel(t *testing.T) {
+	t.Setenv(LogLevel, "info")
+
+	m := Map{LogLevel: NewLogLevelVar()}
+	require.NoError(t, m.SetEnv(), "an unknown LOG_LEVEL must not fail startup")
+	assert.Equal(t, "info", m[LogLevel].Value)
+}
+
+// The fallback must be visible: a set-but-unknown level prints a warning so
+// the misconfiguration is not silent.
+func TestGetLogLevel_WarnsOnUnknownValue(t *testing.T) {
+	t.Setenv(LogLevel, "info")
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	orig := os.Stdout
+	os.Stdout = w
+	level := GetLogLevel()
+	os.Stdout = orig
+	require.NoError(t, w.Close())
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	assert.Equal(t, DevLogLevel, level)
+	assert.Contains(t, string(out), "falling back", "the fallback warns so misconfiguration is visible")
 }

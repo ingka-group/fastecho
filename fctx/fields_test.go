@@ -63,3 +63,13 @@ func fieldMap(fields []zap.Field) map[string]any {
 	zap.New(core).Info("probe", fields...)
 	return logs.All()[0].ContextMap()
 }
+
+func TestWithNewRequestID_SeedsAFreshID(t *testing.T) {
+	a := fctx.WithNewRequestID(context.Background())
+	b := fctx.WithNewRequestID(context.Background())
+
+	idA, idB := fctx.RequestID(a), fctx.RequestID(b)
+	assert.NotEmpty(t, idA)
+	assert.NotEmpty(t, idB)
+	assert.NotEqual(t, idA, idB, "each call seeds its own id")
+}

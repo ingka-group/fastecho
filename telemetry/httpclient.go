@@ -36,24 +36,42 @@ func WrapClient(c *http.Client) *http.Client {
 
 // WrapTransport wraps base (nil → http.DefaultTransport) with trace-context
 // propagation and X-Request-Id forwarding. Use this when you hold a
-// RoundTripper directly (e.g. instrumenting a generated client).
+// RoundTripper directly (e.g. instrumenting a generated client). Wrapping an
+// already-wrapped transport is a no-op, so double-wrapping cannot stack
+// duplicate spans.
 func WrapTransport(base http.RoundTripper) http.RoundTripper {
 	if base == nil {
 		base = http.DefaultTransport
 	}
-	return requestIDTransport{base: otelhttp.NewTransport(base)}
+	if _, ok := base.(requestIDTransport); ok {
+		return base
+	}
+	return requestIDTransport{base: otelhttp.NewTransport(base), original: base}
 }
 
+// requestIDTransport injects the fctx request id and delegates to the otelhttp
+// transport in base; original is kept because otelhttp forwards nothing beyond
+// RoundTrip, and net/http reaches CloseIdleConnections via type assertion.
 type requestIDTransport struct {
-	base http.RoundTripper
+	base     http.RoundTripper
+	original http.RoundTripper
 }
 
 func (t requestIDTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// The RoundTripper contract forbids mutating the caller's request; otelhttp
-	// (the wrapped base) also injects headers, so hand everything below a clone.
-	req = req.Clone(req.Context())
+	// The RoundTripper contract forbids mutating the caller's request, so clone
+	// before injecting. otelhttp clones again for its own header injection, so
+	// the no-injection path can pass req through untouched.
 	if id := fctx.RequestID(req.Context()); id != "" && req.Header.Get(echo.HeaderXRequestID) == "" {
+		req = req.Clone(req.Context())
 		req.Header.Set(echo.HeaderXRequestID, id)
 	}
 	return t.base.RoundTrip(req)
+}
+
+// CloseIdleConnections forwards to the original transport so connection
+// rotation and shutdown hygiene keep working on wrapped clients.
+func (t requestIDTransport) CloseIdleConnections() {
+	if ci, ok := t.original.(interface{ CloseIdleConnections() }); ok {
+		ci.CloseIdleConnections()
+	}
 }

@@ -37,6 +37,7 @@ import (
 	"github.com/ingka-group/fastecho/echozap"
 	"github.com/ingka-group/fastecho/env"
 	"github.com/ingka-group/fastecho/fctx"
+	"github.com/ingka-group/fastecho/internal/banner"
 	"github.com/ingka-group/fastecho/internal/version"
 	"github.com/ingka-group/fastecho/router"
 	"github.com/ingka-group/fastecho/telemetry"
@@ -85,6 +86,11 @@ type server struct {
 	Providers *telemetry.Providers
 	Workers   map[string]Worker
 
+	// envs is the resolved env map: the framework declarations merged with the
+	// caller's ExtraEnvs overrides. Internal reads go through it, never through
+	// the package-level declaration table (an override replaces the *Var there).
+	envs env.Map
+
 	workerInitialRestartDelay  time.Duration
 	workerMaxRestartDelay      time.Duration
 	workerStableResetThreshold time.Duration
@@ -105,21 +111,21 @@ func Run(cfg *Config) error {
 
 	// Allow custom Echo configuration
 	if cfg.EchoFn != nil {
-		err = cfg.EchoFn(s.Echo)
-		if err != nil {
+		if err = cfg.EchoFn(s.Echo); err != nil {
+			_ = s.Providers.Shutdown(context.Background())
 			return err
 		}
 	}
 
-	err = s.Router.Setup()
-	if err != nil {
+	if err = s.Router.Setup(); err != nil {
+		_ = s.Providers.Shutdown(context.Background())
 		return err
 	}
 
 	s.Router.PrintRoutes(s.Echo)
 
 	// Run it!
-	return s.run(envs[hostname].Value, envs[port].Value)
+	return s.run(s.envs[hostname].Value, s.envs[port].Value)
 }
 
 // Initialize sets up a new instance of FastEcho and returns a prepared FastEcho type, but does not
@@ -212,28 +218,35 @@ func (s *server) setup(cfg *Config) (err error) {
 	return nil
 }
 
-// loadEnv merges the framework envs with any caller-supplied extras and exports
-// them, so every later phase can read its configuration from the environment.
+// loadEnv merges the framework envs with any caller-supplied extras, exports
+// them, and keeps the resolved map on the server for every later phase.
 func (s *server) loadEnv(cfg *Config) error {
 	allEnvs := make(env.Map)
 	maps.Copy(allEnvs, envs)
 	maps.Copy(allEnvs, cfg.ExtraEnvs)
 
-	return allEnvs.SetEnv()
+	if err := allEnvs.SetEnv(); err != nil {
+		return err
+	}
+	s.envs = allEnvs
+	return nil
 }
 
 // setupLogger builds the zap logger and reports the resolved log level.
 func (s *server) setupLogger() error {
-	logLevel := envs[env.LogLevel].Value
+	// Normalized read (warn + dev fallback on unknown values) — the same value
+	// echozap.New builds the logger from, so the banner cannot disagree with it.
+	logLevel := env.GetLogLevel()
 	logger, err := echozap.New()
 	if err != nil {
 		return err
 	}
 	s.Logger = logger
 
-	fmt.Println("\nLog configuration")
-	fmt.Printf("  %-16s : %s\n", "LOG_LEVEL (env)", logLevel)
-	fmt.Printf("  %-16s : %s\n", "EchoZap level", s.Logger.Level().String())
+	banner.Section("Log configuration",
+		"LOG_LEVEL (env)", logLevel,
+		"EchoZap level", s.Logger.Level().String(),
+	)
 
 	return nil
 }
@@ -251,6 +264,15 @@ func (s *server) setupTelemetry(cfg *Config) error {
 	}
 	s.Providers = providers
 
+	// One counter for all workers, labelled per worker/kind at record time.
+	// Created here by construction so it exists whenever workers can run;
+	// MeterProvider is always non-nil (noop when metrics are skipped).
+	s.workerFailures, _ = providers.MeterProvider.Meter(telemetry.ScopeName).Int64Counter(
+		"fastecho.worker.failures",
+		metric.WithDescription("background worker panics and error exits"),
+		metric.WithUnit("{failure}"),
+	)
+
 	s.Providers.PrintConfiguration()
 
 	return nil
@@ -266,8 +288,8 @@ func (s *server) setupRouter(cfg *Config) error {
 			SkipMetrics:      cfg.Opts.Metrics.Skip,
 			SkipHealthChecks: cfg.Opts.HealthChecks.Skip,
 			HealthChecksDB:   cfg.Opts.HealthChecks.DB,
-			SwaggerTitle:     envs[swaggerUITitle].Value,
-			SwaggerPath:      envs[swaggerJSONPath].Value,
+			SwaggerTitle:     s.envs[swaggerUITitle].Value,
+			SwaggerPath:      s.envs[swaggerJSONPath].Value,
 			MetricsGatherer:  s.Providers.PrometheusGatherer,
 		},
 	)
@@ -309,19 +331,21 @@ func (s *server) middlewares(cfg *Config) {
 		return isSwaggerRoute(c) || isMetricsRoute(c) || isHealthRoute(c)
 	}
 
-	// 1. Recover, outermost: catches panics in any middleware below.
+	// 1. Safety net, outermost: catches panics thrown by the middlewares
+	// themselves. Handler panics are caught by the inner recover (registered
+	// last), which still sees the span and correlation context; by the time a
+	// panic unwinds to this layer otelecho has restored the pre-request
+	// context, so this logs bare.
 	s.Echo.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{
 		DisablePrintStack: true,
 		LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
 			req := c.Request()
-			fields := append(fctx.Fields(req.Context()),
+			s.Logger.Error("panic recovered (middleware)",
 				zap.Error(err),
 				zap.String("method", req.Method),
-				zap.String("path", c.Path()),
 				zap.String("uri", req.RequestURI),
 				zap.ByteString("stack", stack),
 			)
-			s.Logger.Error("panic recovered", fields...)
 			return err
 		},
 	}))
@@ -352,12 +376,32 @@ func (s *server) middlewares(cfg *Config) {
 		Skipper: func(c echo.Context) bool { return isSwaggerRoute(c) || isMetricsRoute(c) },
 	}))
 
-	// 6. Access log, innermost: sees the final status via the request logger.
+	// 6. Access log: sees the final status of every request, including panics
+	// converted to errors by the recover below it.
 	if !cfg.Opts.Logs.Skip {
 		s.Echo.Use(echozap.ZapLoggerMiddlewareWithConfig(s.Logger, echozap.ZapLoggerMiddlewareConfig{
 			Skipper: skip,
 		}))
 	}
+
+	// 7. Recover, innermost: converts handler panics to errors while the span,
+	// request logger, and request id are still live, so the access log, the
+	// HTTP metrics, the span status, and this log line all record the failure.
+	s.Echo.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{
+		DisablePrintStack: true,
+		LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
+			req := c.Request()
+			fields := append(fctx.Fields(req.Context()),
+				zap.Error(err),
+				zap.String("method", req.Method),
+				zap.String("path", c.Path()),
+				zap.String("uri", req.RequestURI),
+				zap.ByteString("stack", stack),
+			)
+			s.Logger.Error("panic recovered", fields...)
+			return err
+		},
+	}))
 }
 
 // run starts the server and listens for interrupt signals to gracefully shut it down.
@@ -383,15 +427,6 @@ func (s *server) serve(ctx context.Context, host string, port string) error {
 
 	// Flush buffered logs on the way out
 	defer func() { _ = s.Logger.Sync() }()
-
-	// One counter for all workers, labelled per worker/kind at record time.
-	// MeterProvider is always non-nil (noop when metrics are skipped), so this is
-	// safe to create unconditionally.
-	s.workerFailures, _ = s.Providers.MeterProvider.Meter(telemetry.ScopeName).Int64Counter(
-		"fastecho.worker.failures",
-		metric.WithDescription("background worker panics and error exits"),
-		metric.WithUnit("{failure}"),
-	)
 
 	// Start background workers, tracked so shutdown can wait for them to drain.
 	var workers sync.WaitGroup

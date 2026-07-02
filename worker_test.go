@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -27,11 +28,13 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/goleak"
 	"go.uber.org/zap"
@@ -52,6 +55,7 @@ func newObserverServer() (*server, *observer.ObservedLogs) {
 			TracerProvider: tracenoop.NewTracerProvider(),
 			MeterProvider:  metricnoop.NewMeterProvider(),
 		},
+		workerFailures:             noopWorkerFailures(),
 		workerInitialRestartDelay:  1 * time.Millisecond,
 		workerMaxRestartDelay:      10 * time.Millisecond,
 		workerStableResetThreshold: 1 * time.Second,
@@ -256,6 +260,88 @@ func TestRunWorkerOnce_SeedsContext(t *testing.T) {
 	require.Equal(t, 1, logs.FilterMessage("working").Len())
 	assert.Equal(t, "widget-worker", logs.All()[0].ContextMap()["worker"])
 	assert.Equal(t, gotReqID, logs.All()[0].ContextMap()["request_id"])
+}
+
+// Worker log lines written inside a span must carry trace_id/span_id — the
+// same correlation the docs promise for request logs.
+func TestWorkerLogsInsideSpan_CarryTraceIDs(t *testing.T) {
+	rec := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+
+	core, logs := observer.New(zapcore.DebugLevel)
+	s := &server{
+		Logger:    zap.New(core),
+		Providers: &telemetry.Providers{TracerProvider: tp},
+	}
+
+	s.runWorkerOnce(t.Context(), "span-worker", func(ctx context.Context) error {
+		ctx, span := fctx.Tracer(ctx).Start(ctx, "unit")
+		fctx.Logger(ctx).Info("inside span")
+		span.End()
+		return nil
+	})
+
+	require.Len(t, rec.Ended(), 1)
+	sc := rec.Ended()[0].SpanContext()
+	entries := logs.FilterMessage("inside span").All()
+	require.Len(t, entries, 1)
+	cm := entries[0].ContextMap()
+	assert.Equal(t, sc.TraceID().String(), cm["trace_id"], "worker log inside a span carries its trace id")
+	assert.Equal(t, sc.SpanID().String(), cm["span_id"])
+	assert.NotEmpty(t, cm["request_id"])
+	assert.Equal(t, "span-worker", cm["worker"])
+}
+
+// Worker spans carry the per-run request id, mirroring the fastecho.request_id
+// attribute HTTP server spans get from fctx.Middleware.
+func TestWorkerSpan_CarriesRequestID(t *testing.T) {
+	rec := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+
+	s := &server{Logger: zap.NewNop(), Providers: &telemetry.Providers{TracerProvider: tp}}
+
+	var reqID string
+	s.runWorkerOnce(t.Context(), "rid-worker", func(ctx context.Context) error {
+		reqID = fctx.RequestID(ctx)
+		_, span := fctx.Tracer(ctx).Start(ctx, "unit")
+		span.End()
+		return nil
+	})
+
+	require.NotEmpty(t, reqID)
+	require.Len(t, rec.Ended(), 1)
+	attrs := map[string]string{}
+	for _, kv := range rec.Ended()[0].Attributes() {
+		attrs[string(kv.Key)] = kv.Value.AsString()
+	}
+	assert.Equal(t, reqID, attrs["fastecho.request_id"])
+}
+
+// Start must not write into the caller's variadic opts backing array.
+func TestWorkerTracer_DoesNotMutateCallerOptsSlice(t *testing.T) {
+	tp := sdktrace.NewTracerProvider()
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+	s := &server{Logger: zap.NewNop(), Providers: &telemetry.Providers{TracerProvider: tp}}
+
+	var tr trace.Tracer
+	s.runWorkerOnce(t.Context(), "opts-worker", func(ctx context.Context) error {
+		tr, _ = fctx.TracerFrom(ctx)
+		return nil
+	})
+	require.NotNil(t, tr)
+
+	sentinel := trace.WithAttributes(attribute.Bool("sentinel", true))
+	backing := make([]trace.SpanStartOption, 2)
+	backing[0] = trace.WithSpanKind(trace.SpanKindInternal)
+	backing[1] = sentinel
+
+	_, span := tr.Start(t.Context(), "unit", backing[:1]...)
+	span.End()
+
+	assert.True(t, reflect.DeepEqual(sentinel, backing[1]),
+		"Start wrote into the caller's backing array beyond len")
 }
 
 func TestRunWorkerOnce_RecordsFailureMetric(t *testing.T) {

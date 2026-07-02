@@ -193,17 +193,19 @@ Behaviour is configured by standard `OTEL_*` env vars (read by the OTel SDK and
 | Variable                       | Default                   | Effect                                                         |
 |--------------------------------|---------------------------|----------------------------------------------------------------|
 | `OTEL_SERVICE_NAME`            | (unset)                   | `service.name` on every span/metric; fastecho warns if unset while a signal is on |
-| `OTEL_SERVICE_VERSION`         | (unset)                   | `service.version` (optional)                                   |
-| `OTEL_RESOURCE_ATTRIBUTES`     | (unset)                   | Extra resource attrs, e.g. `deployment.environment=prod`       |
+| `OTEL_RESOURCE_ATTRIBUTES`     | (unset)                   | Extra resource attrs, e.g. `service.version=1.2.3,deployment.environment=prod` |
 | `OTEL_TRACES_EXPORTER`         | `otlp`                    | `otlp` \| `console` \| `none`                                  |
 | `OTEL_METRICS_EXPORTER`        | `prometheus`              | `prometheus` (served at `/metrics`) \| `otlp` (push) \| `none` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`  | `localhost:4317`          | Collector endpoint (gRPC port, matching the default protocol)  |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`  | `localhost:4317`          | Collector endpoint. TLS by default; use an `http://` URL for a plaintext collector |
 | `OTEL_EXPORTER_OTLP_PROTOCOL`  | `grpc` (fastecho default) | Set `http/protobuf` for a `:4318` collector                    |
 | `OTEL_TRACES_SAMPLER`          | `parentbased_always_on`   | e.g. `parentbased_traceidratio`                                |
 | `OTEL_TRACES_SAMPLER_ARG`      | `1.0`                     | Sample ratio for the ratio samplers                            |
 | `OTEL_METRICS_EXEMPLAR_FILTER` | `trace_based`             | Which measurements carry trace exemplars                       |
 
-> `/metrics` stays on the service's main port (default `prometheus` exporter).
+> `/metrics` stays on the service's main port (default `prometheus` exporter)
+> and keeps serving everything on `prometheus.DefaultGatherer` — your
+> `prometheus.MustRegister` metrics and the `go_*`/`process_*` collectors —
+> alongside the OTel output.
 > The metric is `http_server_request_duration_seconds_*` (was `echo_http_*`).
 
 #### Code toggles (`fastecho.Opts`)

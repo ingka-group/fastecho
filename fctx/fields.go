@@ -47,3 +47,9 @@ func Fields(ctx context.Context) []zap.Field {
 func NewRequestID() string {
 	return uuid.New().String()
 }
+
+// WithNewRequestID stores a fresh request id in ctx. Use it to seed
+// correlation for work that has no inbound request (background jobs, cron).
+func WithNewRequestID(ctx context.Context) context.Context {
+	return WithRequestID(ctx, NewRequestID())
+}

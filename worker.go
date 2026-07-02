@@ -78,16 +78,24 @@ func (s *server) runWorker(ctx context.Context, name string, w Worker) {
 // error so that one worker cannot crash the process or affect the others.
 func (s *server) runWorkerOnce(ctx context.Context, name string, w Worker) {
 	// Fresh request id per run, so each restart's logs/spans correlate to that run.
-	ctx = fctx.WithRequestID(ctx, fctx.NewRequestID())
-	fields := append(fctx.Fields(ctx), zap.String("worker", name))
-	ctx = fctx.WithLogger(ctx, s.Logger.With(fields...))
+	ctx = fctx.WithNewRequestID(ctx)
+	// base carries only the worker tag; correlation fields are appended per
+	// seed/span start so they never stack up as duplicates.
+	base := s.Logger.With(zap.String("worker", name))
+	ctx = fctx.WithLogger(ctx, base.With(fctx.Fields(ctx)...))
 
-	// Seed a tracer that stamps worker=<name> on every span; worker spans are
-	// roots (no inbound request), so this label is how you find all runs of a
-	// worker. Providers is always non-nil (noop tracer when tracing is skipped).
+	// Seed a tracer that stamps worker=<name> and the run's request id on every
+	// span; worker spans are roots (no inbound request), so these labels are how
+	// you find all runs of a worker and mirror the fastecho.request_id attribute
+	// HTTP spans get. Providers is always non-nil (noop tracer when tracing is
+	// skipped).
 	ctx = fctx.WithTracer(ctx, workerTracer{
 		Tracer: s.Providers.TracerProvider.Tracer(telemetry.ScopeName),
-		attrs:  []attribute.KeyValue{attribute.String("worker", name)},
+		opt: trace.WithAttributes(
+			attribute.String("worker", name),
+			attribute.String("fastecho.request_id", fctx.RequestID(ctx)),
+		),
+		base: base,
 	})
 
 	defer func() {
@@ -108,30 +116,35 @@ func (s *server) runWorkerOnce(ctx context.Context, name string, w Worker) {
 }
 
 // recordWorkerFailure increments the worker-failure counter, labeled by worker
-// and kind (panic|error), so failures are alertable per worker. Nil-safe: the
-// counter is created on the serve path, so direct runWorkerOnce unit tests may
-// leave it unset.
+// and kind (panic|error), so failures are alertable per worker.
 func (s *server) recordWorkerFailure(ctx context.Context, name, kind string) {
-	if s.workerFailures == nil {
-		return
-	}
 	s.workerFailures.Add(ctx, 1, metric.WithAttributes(
 		attribute.String("worker", name),
 		attribute.String("kind", kind),
 	))
 }
 
-// workerTracer stamps the worker's name on every span it starts. We deliberately
-// do not span the whole run: workers block until shutdown, so a run-spanning span
-// would stay open for the service lifetime and never export. The worker body
-// spans each unit of work; this tracer just labels those spans.
+// workerTracer stamps the worker's identity on every span it starts and
+// re-seeds the context logger with the span's correlation fields, so worker log
+// lines written inside a span carry trace_id/span_id like request logs do. We
+// deliberately do not span the whole run: workers block until shutdown, so a
+// run-spanning span would stay open for the service lifetime and never export.
+// The worker body spans each unit of work; this tracer labels those spans.
 type workerTracer struct {
 	trace.Tracer
-	attrs []attribute.KeyValue
+	opt  trace.SpanStartOption
+	base *zap.Logger
 }
 
 func (t workerTracer) Start(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return t.Tracer.Start(ctx, name, append(opts, trace.WithAttributes(t.attrs...))...)
+	// Copied, not appended in place: appending to the variadic slice can write
+	// into the caller's backing array when it has spare capacity.
+	merged := make([]trace.SpanStartOption, 0, len(opts)+1)
+	merged = append(append(merged, opts...), t.opt)
+	ctx, span := t.Tracer.Start(ctx, name, merged...)
+	// Rebuilt from base (not the stored logger) so nested spans don't stack
+	// duplicate correlation fields.
+	return fctx.WithLogger(ctx, t.base.With(fctx.Fields(ctx)...)), span
 }
 
 // drainWorkers waits for all workers to return, bounded by ctx. If they do not

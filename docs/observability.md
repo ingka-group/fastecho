@@ -107,14 +107,14 @@ ctx, span := telemetry.StartSpan(ctx) // auto-named after the calling function
 defer span.End()
 ```
 
-`StartSpan` resolves the tracer from `ctx` (`fctx.Tracer(ctx)`), so it uses whichever provider the request is running under — and falls back to a no-op tracer (zero spans, no panic) if tracing is off.
+`StartSpan` resolves the tracer from `ctx` (`fctx`), so it uses whichever provider the request or worker is running under — and falls back to the **global** provider for contexts fastecho didn't seed (startup tasks, cron callbacks), so those spans still export. With tracing off the provider is a no-op: zero spans, no panic.
 
 **Propagation.** Trace context crosses service hops via the W3C `traceparent` propagator, registered globally:
 
 - **Inbound:** `otelecho` extracts `traceparent` and continues the upstream trace.
 - **Outbound:** `telemetry.WrapClient` injects `traceparent` (and forwards `X-Request-Id`) onto every request — see [Outbound calls](#outbound-calls).
 
-**Sampling.** How many traces are kept is **env-driven**, read directly by the OTel SDK from `OTEL_TRACES_SAMPLER` / `OTEL_TRACES_SAMPLER_ARG`. fastecho does *not* hand-roll a sampler — the SDK already handles every standard value (`always_on`, `always_off`, ratio-based, and the `parentbased_*` variants) and defaults to `parentbased_always_on` (keep everything, respecting the caller's decision). "ParentBased" means: if an incoming request was already sampled upstream, honor that; only the root of a new trace consults the ratio.
+**Sampling.** How many traces are kept is **env-driven**, read directly by the OTel SDK from `OTEL_TRACES_SAMPLER` / `OTEL_TRACES_SAMPLER_ARG`. fastecho does *not* hand-roll a sampler — the SDK already handles every standard value (`always_on`, `always_off`, ratio-based, and the `parentbased_*` variants) and defaults to `parentbased_always_on` (keep everything, respecting the caller's decision). "ParentBased" means: if an incoming request was already sampled upstream, honor that; only the root of a new trace consults the ratio. Note this honors *negative* upstream decisions too: behind a gateway or mesh that marks requests unsampled, those requests produce no spans (pre-0.16 releases always sampled) — set `OTEL_TRACES_SAMPLER=always_on` to trace every request regardless.
 
 ---
 
@@ -271,9 +271,10 @@ The result: a downstream service running this same stack continues *your* trace 
 ## Under the hood
 
 - **OpenTelemetry SDK** is the engine. fastecho's `telemetry` package is a thin bootstrap over it.
-- **`telemetry.Init`** builds one **resource** (shared identity for every signal), the tracer and meter providers, env-driven exporters, and a single `Shutdown` closer that drains traces and metrics together. It always returns non-nil providers — when a signal is disabled it installs a **no-op** provider, so nothing downstream has to nil-check.
+- **`telemetry.Init`** builds one **resource** (shared identity for every signal), the tracer and meter providers, env-driven exporters, and a single `Shutdown` closer that drains traces and metrics together. It always returns non-nil providers — when a signal is disabled it installs a **no-op** provider, so nothing downstream has to nil-check. Skipped signals also leave the process-global OTel state (providers, propagator) and the `OTEL_*` env defaults untouched, so an app that runs its own OTel SDK keeps working.
 - **Exporters are chosen by environment**, via the OTel `autoexport` helper (`OTEL_TRACES_EXPORTER`, `OTEL_METRICS_EXPORTER`). The same binary is configured per deployment; fastecho adds only two `OTEL_*` defaults beyond the SDK's own, both to preserve prior behavior and both overridable: metrics to `prometheus` (so `/metrics` keeps serving on the main port) and OTLP transport to `grpc`.
-- **Service identity** comes from `OTEL_SERVICE_NAME` (+ `OTEL_RESOURCE_ATTRIBUTES`); a `service.instance.id` is generated if you don't set one. If a signal is enabled without `OTEL_SERVICE_NAME`, fastecho **warns** (it does not fail): the SDK would otherwise label everything `unknown_service`, collapsing unnamed services together in the backend.
+- **Service identity** comes from `OTEL_SERVICE_NAME` (or `service.name` in `OTEL_RESOURCE_ATTRIBUTES`); a `service.instance.id` is generated if you don't set one. If a signal is enabled and the resolved resource carries no service name, fastecho **warns** (it does not fail): the SDK labels everything `unknown_service`, collapsing unnamed services together in the backend.
+- **fastecho's own endpoints are not measured:** requests whose path contains `/health`, `/metrics`, or `/swagger/` are skipped by the trace, metrics, and access-log middlewares. The match is substring-based, so a user route like `/api/healthcheck` is excluded too — avoid those segments in routes you want measured.
 - **Startup banner.** On boot, fastecho prints plain key/value sections (`Database configuration`, `Telemetry configuration`, `Log configuration`) showing the resolved exporters, OTLP protocol/endpoint, and metrics delivery model. It's deliberately plain text (no ANSI) so it reads cleanly in a dev console and stays free of escape codes in a log aggregator, making an upgrade or misconfiguration visible at a glance.
 
 ### Configuration

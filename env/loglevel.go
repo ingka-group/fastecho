@@ -15,6 +15,7 @@
 package env
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/ingka-group/fastecho/internal/stringutils"
@@ -31,19 +32,24 @@ const (
 
 var logLevels = []string{DevLogLevel, TestLogLevel, ProdLogLevel}
 
-// NewLogLevelVar returns the canonical LOG_LEVEL variable: defaults to dev,
-// constrained to the known levels. Fresh *Var per call so Maps don't alias it.
+// NewLogLevelVar returns the canonical LOG_LEVEL variable: defaults to dev.
+// Deliberately not constrained via OneOf: an unknown value must not fail
+// startup — consumers normalize it through GetLogLevel (warn + dev fallback),
+// matching pre-OTel releases. Fresh *Var per call so Maps don't alias it.
 func NewLogLevelVar() *Var {
 	return &Var{
 		DefaultValue: DevLogLevel,
-		OneOf:        logLevels,
 	}
 }
 
 // GetLogLevel reads LOG_LEVEL, falling back to dev when unset or unknown.
+// A set-but-unknown value warns so the misconfiguration is not silent.
 func GetLogLevel() string {
 	level := os.Getenv(LogLevel)
 	if !stringutils.ExistsInSlice(level, logLevels) {
+		if level != "" {
+			fmt.Printf("no valid %s set (%q), falling back to %s\n", LogLevel, level, DevLogLevel)
+		}
 		return DevLogLevel
 	}
 	return level

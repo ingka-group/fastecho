@@ -54,10 +54,17 @@ func MustLogger(ctx context.Context) *zap.Logger {
 // Tracer returns the OTel tracer from ctx.
 // Returns a no-op tracer if none was registered, no spans are produced.
 func Tracer(ctx context.Context) trace.Tracer {
-	if t, ok := ctx.Value(tracerKey{}).(trace.Tracer); ok && t != nil {
+	if t, ok := TracerFrom(ctx); ok {
 		return t
 	}
 	return noop.NewTracerProvider().Tracer("")
+}
+
+// TracerFrom returns the tracer stored in ctx and whether one was set, for
+// callers that want their own fallback instead of Tracer's no-op.
+func TracerFrom(ctx context.Context) (trace.Tracer, bool) {
+	t, ok := ctx.Value(tracerKey{}).(trace.Tracer)
+	return t, ok && t != nil
 }
 
 // RequestID returns the request ID from ctx.

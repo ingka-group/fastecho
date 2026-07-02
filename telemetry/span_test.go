@@ -20,6 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -185,4 +186,43 @@ func TestSpanFunc_RecordsPanicAndReraises(t *testing.T) {
 	assert.Equal(t, "panicking-work", spans[0].Name)
 	assert.Equal(t, codes.Error, spans[0].Status.Code)
 	assert.Contains(t, spans[0].Status.Description, "panic: something broke")
+}
+
+// A context not seeded by fastecho middleware (background jobs, cron
+// callbacks) must still produce spans via the global provider when tracing is
+// enabled — the pre-OTel-migration behavior.
+func TestStartSpan_UnseededContextUsesGlobalProvider(t *testing.T) {
+	exp := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+
+	prev := otel.GetTracerProvider()
+	t.Cleanup(func() { otel.SetTracerProvider(prev) })
+	otel.SetTracerProvider(tp)
+
+	_, span := telemetry.StartSpan(context.Background())
+	span.End()
+
+	require.Len(t, exp.GetSpans(), 1, "unseeded context falls back to the global provider")
+}
+
+// The fctx-seeded tracer still takes priority over the global one.
+func TestStartSpan_SeededTracerWinsOverGlobal(t *testing.T) {
+	globalExp := tracetest.NewInMemoryExporter()
+	globalTP := sdktrace.NewTracerProvider(sdktrace.WithSyncer(globalExp))
+	t.Cleanup(func() { _ = globalTP.Shutdown(context.Background()) })
+	prev := otel.GetTracerProvider()
+	t.Cleanup(func() { otel.SetTracerProvider(prev) })
+	otel.SetTracerProvider(globalTP)
+
+	seededExp := tracetest.NewInMemoryExporter()
+	seededTP := sdktrace.NewTracerProvider(sdktrace.WithSyncer(seededExp))
+	t.Cleanup(func() { _ = seededTP.Shutdown(context.Background()) })
+
+	ctx := fctx.WithTracer(context.Background(), seededTP.Tracer("seeded"))
+	_, span := telemetry.StartSpan(ctx)
+	span.End()
+
+	assert.Len(t, seededExp.GetSpans(), 1, "seeded tracer used")
+	assert.Empty(t, globalExp.GetSpans(), "global provider not used when a tracer is seeded")
 }

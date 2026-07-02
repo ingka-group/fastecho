@@ -110,3 +110,29 @@ func TestRoundTrip_PropagatesTraceAndRequestID(t *testing.T) {
 	assert.Equal(t, "rid-roundtrip", got["request_id"], "X-Request-Id forwarded")
 	assert.Equal(t, span.SpanContext().TraceID().String(), got["trace_id"], "trace continued across the hop")
 }
+
+// Wrapping twice must not nest another otelhttp layer (duplicate client spans
+// and duplicated headers); WrapTransport is idempotent.
+func TestWrapTransport_Idempotent(t *testing.T) {
+	w := telemetry.WrapTransport(nil)
+	assert.Equal(t, w, telemetry.WrapTransport(w), "wrapping an already-wrapped transport is a no-op")
+}
+
+// closableTransport records whether CloseIdleConnections reached it.
+type closableTransport struct {
+	http.RoundTripper
+	closed bool
+}
+
+func (c *closableTransport) CloseIdleConnections() { c.closed = true }
+
+// net/http type-asserts Client.Transport for CloseIdleConnections; the wrapper
+// must forward it to the original base (otelhttp forwards nothing).
+func TestWrapClient_ForwardsCloseIdleConnections(t *testing.T) {
+	base := &closableTransport{RoundTripper: http.DefaultTransport}
+	client := telemetry.WrapClient(&http.Client{Transport: base})
+
+	client.CloseIdleConnections()
+
+	assert.True(t, base.closed, "CloseIdleConnections must reach the wrapped base transport")
+}

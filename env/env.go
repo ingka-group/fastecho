@@ -44,6 +44,12 @@ type Var struct {
 }
 
 // SetEnv reads and sets the provided list of env vars based on the Map.
+//
+// Every resolved value — defaults included — is exported back to the process
+// environment via os.Setenv, so os.Getenv readers (the OTel SDK, this module's
+// own consumers) observe exactly what the Map resolved. The exports are
+// process-wide: other libraries and child processes see them too, so only
+// declare variables (and defaults) the process should genuinely run with.
 func (m Map) SetEnv() error {
 	var messages []string
 
