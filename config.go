@@ -40,10 +40,10 @@ type Config struct {
 
 // Opts define configuration options for fastecho.
 type Opts struct {
-	Metrics      MetricsOpts
-	Tracing      TracingOpts
-	Logs         LogsOpts
-	HealthChecks HealthChecksOpts
+	Metrics      MetricsOpts      `json:"metrics"`
+	Tracing      TracingOpts      `json:"tracing"`
+	Logs         LogsOpts         `json:"logs"`
+	HealthChecks HealthChecksOpts `json:"health_checks"`
 }
 
 // MetricsOpts define configuration options for metrics.

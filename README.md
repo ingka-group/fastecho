@@ -192,7 +192,7 @@ Behaviour is configured by standard `OTEL_*` env vars (read by the OTel SDK and
 
 | Variable                       | Default                   | Effect                                                         |
 |--------------------------------|---------------------------|----------------------------------------------------------------|
-| `OTEL_SERVICE_NAME`            | (unset)                   | `service.name` on every span/metric                            |
+| `OTEL_SERVICE_NAME`            | (unset)                   | `service.name` on every span/metric; fastecho warns if unset while a signal is on |
 | `OTEL_SERVICE_VERSION`         | (unset)                   | `service.version` (optional)                                   |
 | `OTEL_RESOURCE_ATTRIBUTES`     | (unset)                   | Extra resource attrs, e.g. `deployment.environment=prod`       |
 | `OTEL_TRACES_EXPORTER`         | `otlp`                    | `otlp` \| `console` \| `none`                                  |

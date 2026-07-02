@@ -19,7 +19,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -70,6 +69,7 @@ var (
 		dbMaxConnLifeTime: {
 			DefaultValue: "1h",
 		},
+		env.LogLevel: env.NewLogLevelVar(),
 	}
 )
 
@@ -77,7 +77,7 @@ var (
 func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 	var db *gorm.DB
 
-	printBanner("⚡ fastecho: initializing database")
+	fmt.Println("\n⚡ fastecho: initializing database")
 
 	// options are not used here
 	err := dbEnvs.SetEnv()
@@ -89,6 +89,8 @@ func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 	if err != nil {
 		lifetime = time.Hour
 	}
+
+	logLevel := dbEnvs[env.LogLevel].Value
 
 	dbConf := &dbConfig{
 		Hostname:        dbEnvs[dbHostname].Value,
@@ -103,17 +105,15 @@ func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 		ConnMaxLifetime: lifetime,
 	}
 
-	db, err = dbConf.setup(cfg)
+	db, err = dbConf.setup(cfg, logLevel)
 	if err != nil {
 		return nil, err
 	}
 
-	logLevel := env.GetLogLevel()
 	_, gormLevelStr := gormLogLevel(logLevel)
-	printBanner("Database configuration",
-		"LOG_LEVEL (env)", logLevel,
-		"GORM level", gormLevelStr,
-	)
+	fmt.Println("\nDatabase configuration")
+	fmt.Printf("  %-16s : %s\n", "LOG_LEVEL (env)", logLevel)
+	fmt.Printf("  %-16s : %s\n", "GORM level", gormLevelStr)
 
 	sqlDb, err := db.DB()
 	if err != nil {
@@ -155,16 +155,16 @@ func gormLogLevel(level string) (logger.LogLevel, string) {
 }
 
 // setup creates a new database based on the configuration given.
-func (c *dbConfig) setup(cfg *gorm.Config) (*gorm.DB, error) {
+func (c *dbConfig) setup(cfg *gorm.Config, logLevel string) (*gorm.DB, error) {
 	dsn, err := c.buildDSN()
 	if err != nil {
 		return nil, err
 	}
 
 	if cfg == nil {
-		logLevel, _ := gormLogLevel(env.GetLogLevel())
+		gormLevel, _ := gormLogLevel(logLevel)
 		cfg = &gorm.Config{
-			Logger: logger.Default.LogMode(logLevel),
+			Logger: logger.Default.LogMode(gormLevel),
 		}
 	}
 
@@ -225,7 +225,7 @@ func migrateDB(db *sql.DB) error {
 			return results[i].Error
 		}
 
-		log.Println("[", i+1, "] Migration applied:", results[i].Source.Path)
+		fmt.Printf("  [%d] Migration applied: %s\n", i+1, results[i].Source.Path)
 	}
 
 	return nil

@@ -23,7 +23,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -38,6 +37,7 @@ import (
 	"github.com/ingka-group/fastecho/echozap"
 	"github.com/ingka-group/fastecho/env"
 	"github.com/ingka-group/fastecho/fctx"
+	"github.com/ingka-group/fastecho/internal/version"
 	"github.com/ingka-group/fastecho/router"
 	"github.com/ingka-group/fastecho/telemetry"
 )
@@ -47,7 +47,6 @@ const (
 	port            = "PORT"
 	swaggerUITitle  = "SWAGGER_UI_TITLE"
 	swaggerJSONPath = "SWAGGER_JSON_PATH"
-	otelServiceName = "OTEL_SERVICE_NAME"
 )
 
 const (
@@ -74,10 +73,7 @@ var (
 		swaggerUITitle: {
 			DefaultValue: "FastEcho Service",
 		},
-		env.LogLevel: {
-			DefaultValue: env.DevLogLevel,
-			OneOf:        []string{env.DevLogLevel, env.TestLogLevel, env.ProdLogLevel},
-		},
+		env.LogLevel: env.NewLogLevelVar(),
 	}
 )
 
@@ -175,7 +171,7 @@ func newServer(cfg *Config) (*server, error) {
 		cfg = &Config{}
 	}
 
-	printBanner(fmt.Sprintf("⚡ fastecho %s: booting", version()))
+	fmt.Printf("\n⚡ fastecho %s: booting\n", version.Get())
 
 	err := s.setup(cfg)
 	if err != nil {
@@ -223,38 +219,30 @@ func (s *server) loadEnv(cfg *Config) error {
 	maps.Copy(allEnvs, envs)
 	maps.Copy(allEnvs, cfg.ExtraEnvs)
 
-	// A named service is mandatory once any signal is on: otherwise the OTel SDK
-	// falls back to service.name="unknown_service", collapsing every unnamed
-	// service together in the backend.
-	if !cfg.Opts.Tracing.Skip || !cfg.Opts.Metrics.Skip {
-		allEnvs[otelServiceName] = &env.Var{}
-	}
-
 	return allEnvs.SetEnv()
 }
 
 // setupLogger builds the zap logger and reports the resolved log level.
 func (s *server) setupLogger() error {
+	logLevel := envs[env.LogLevel].Value
 	logger, err := echozap.New()
 	if err != nil {
 		return err
 	}
 	s.Logger = logger
 
-	printBanner("Log configuration",
-		"LOG_LEVEL (env)", env.GetLogLevel(),
-		"EchoZap level", s.Logger.Level().String(),
-	)
+	fmt.Println("\nLog configuration")
+	fmt.Printf("  %-16s : %s\n", "LOG_LEVEL (env)", logLevel)
+	fmt.Printf("  %-16s : %s\n", "EchoZap level", s.Logger.Level().String())
 
 	return nil
 }
 
-// setupTelemetry starts the telemetry providers and reports what the SDK
-// resolved from the environment. The mandatory OTEL_SERVICE_NAME is enforced
-// earlier, in loadEnv.
+// setupTelemetry starts the telemetry providers and prints their resolved
+// configuration. telemetry.Init warns (does not fail) when a signal is enabled
+// without OTEL_SERVICE_NAME set.
 func (s *server) setupTelemetry(cfg *Config) error {
-	providers, info, err := telemetry.Init(context.Background(), telemetry.Config{
-		SetGlobal:   true,
+	providers, err := telemetry.Init(context.Background(), telemetry.Config{
 		SkipTraces:  cfg.Opts.Tracing.Skip,
 		SkipMetrics: cfg.Opts.Metrics.Skip,
 	})
@@ -263,37 +251,9 @@ func (s *server) setupTelemetry(cfg *Config) error {
 	}
 	s.Providers = providers
 
-	printTelemetryInfo(info)
+	s.Providers.PrintConfiguration()
 
 	return nil
-}
-
-// printTelemetryInfo logs the resolved telemetry configuration at startup.
-func printTelemetryInfo(info telemetry.Info) {
-	kvs := []string{
-		"Service name", info.ServiceName,
-		"Traces enabled", strconv.FormatBool(info.Traces),
-		"Traces exporter", info.TracesExporter,
-	}
-	if info.TracesEndpoint != "" {
-		kvs = append(kvs,
-			"Traces OTLP protocol", info.TracesProtocol,
-			"Traces OTLP endpoint", info.TracesEndpoint,
-		)
-	}
-	kvs = append(kvs,
-		"Metrics enabled", strconv.FormatBool(info.Metrics),
-		"Metrics exporter", info.MetricsExporter,
-		"Metrics delivery", info.MetricsDelivery,
-	)
-	if info.MetricsEndpoint != "" {
-		kvs = append(kvs,
-			"Metrics OTLP protocol", info.MetricsProtocol,
-			"Metrics OTLP endpoint", info.MetricsEndpoint,
-		)
-	}
-
-	printBanner("Telemetry configuration", kvs...)
 }
 
 // setupRouter builds the router and validator, then registers caller and plugin

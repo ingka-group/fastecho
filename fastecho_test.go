@@ -259,16 +259,16 @@ func TestInitialize_HasProvidersAndShutdownIsSafe(t *testing.T) {
 	require.NoError(t, fe.Shutdown(gocontext.Background()))
 }
 
-// OTEL_SERVICE_NAME is mandatory once tracing or metrics is enabled: the
-// otelecho middleware needs a service name to attribute spans and metrics to.
-func TestInitialize_RequiresServiceNameWhenTelemetryEnabled(t *testing.T) {
+// A missing OTEL_SERVICE_NAME no longer blocks boot; telemetry only warns.
+func TestInitialize_ProceedsWithoutServiceName(t *testing.T) {
 	t.Setenv("OTEL_TRACES_EXPORTER", "none")
 	t.Setenv("OTEL_METRICS_EXPORTER", "none")
 	os.Unsetenv("OTEL_SERVICE_NAME")
 
-	_, err := Initialize(&Config{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "OTEL_SERVICE_NAME")
+	fe, err := Initialize(&Config{})
+	require.NoError(t, err)
+	require.NotNil(t, fe.server.Providers)
+	require.NoError(t, fe.Shutdown(gocontext.Background()))
 }
 
 func TestMetricsEndpointStillServed(t *testing.T) {

@@ -16,7 +16,9 @@ package telemetry
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strconv"
 	"sync"
 
 	"github.com/google/uuid"
@@ -38,19 +40,35 @@ import (
 	"github.com/ingka-group/fastecho/env"
 )
 
+// OTEL_* environment variable names read by this package (and the OTel SDK).
+const (
+	otelServiceName         = "OTEL_SERVICE_NAME"
+	otelTracesExporter      = "OTEL_TRACES_EXPORTER"
+	otelMetricsExporter     = "OTEL_METRICS_EXPORTER"
+	otelOTLPProtocol        = "OTEL_EXPORTER_OTLP_PROTOCOL"
+	otelOTLPEndpoint        = "OTEL_EXPORTER_OTLP_ENDPOINT"
+	otelOTLPTracesProtocol  = "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL"
+	otelOTLPTracesEndpoint  = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+	otelOTLPMetricsProtocol = "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"
+	otelOTLPMetricsEndpoint = "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"
+)
+
+// otelEnv resolves fastecho's OTEL_* defaults into the environment
+func otelEnv() env.Map {
+	return env.Map{
+		otelTracesExporter:  {DefaultValue: "otlp"},
+		otelMetricsExporter: {DefaultValue: "prometheus"},
+		otelOTLPProtocol:    {DefaultValue: "grpc"},
+		otelServiceName:     {Optional: true},
+	}
+}
+
 // Config carries only wiring that has no env equivalent; behavior values
 // (endpoint, sampling, exporter) come from OTEL_* env so there is one source of
 // truth per setting.
 type Config struct {
 	SkipTraces  bool
 	SkipMetrics bool
-
-	// SetGlobal registers the providers + propagator as the process-global OTel
-	// singletons (otelecho/otelhttp read the global propagator to carry
-	// traceparent across hops). Tests pass false so parallel instances don't
-	// clobber the global; not exposed on fastecho.Config because disabling it in
-	// production would silently break propagation.
-	SetGlobal bool
 }
 
 // Providers holds the configured providers and a single shutdown closer.
@@ -60,26 +78,10 @@ type Providers struct {
 	// PrometheusGatherer is non-nil when OTEL_METRICS_EXPORTER=prometheus; the
 	// router serves it at /metrics on the main port. Nil otherwise.
 	PrometheusGatherer prometheus.Gatherer
-	shutdown           func(context.Context) error
-}
 
-// Info is what Init resolved from OTEL_* env and the cfg toggles, for the caller
-// to log once at startup.
-type Info struct {
-	ServiceName string
-
-	Traces         bool   // exporter active (not SkipTraces)
-	TracesExporter string // OTEL_TRACES_EXPORTER (default "otlp")
-	// OTLP transport for traces; set only when the exporter is OTLP.
-	TracesProtocol string
-	TracesEndpoint string
-
-	Metrics         bool
-	MetricsExporter string // OTEL_METRICS_EXPORTER (default "prometheus")
-	MetricsDelivery string // "pull (/metrics)" | "push" | "off"
-	// OTLP transport for metrics; set only when metrics push over OTLP.
-	MetricsProtocol string
-	MetricsEndpoint string
+	shutdown func(context.Context) error
+	cfg      Config
+	env      env.Map
 }
 
 // Shutdown flushes and stops all providers. Nil-safe.
@@ -90,23 +92,24 @@ func (p *Providers) Shutdown(ctx context.Context) error {
 	return p.shutdown(ctx)
 }
 
-// Init builds the providers from OTEL_* env and returns them with one shutdown,
-// plus an Info snapshot of what it resolved for the caller to log at startup.
-func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
-	// Preserve fastecho's historical gRPC default. autoexport reads
-	// OTEL_EXPORTER_OTLP_PROTOCOL itself to pick the transport for BOTH the trace
-	// and metric OTLP exporters, so setting the env var here is the single lever
-	// that defaults every signal to gRPC - matching the old hardcoded behaviour and
-	// keeping existing :4317 collectors working. Only when the operator expressed no
-	// protocol preference; they opt into the OTel default by setting either var.
-	if os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL") == "" &&
-		os.Getenv("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL") == "" {
-		_ = os.Setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
+// Init builds the providers from OTEL_* env and returns them with one shutdown.
+// It registers the providers + propagator as the process-global OTel singletons.
+// Call PrintConfiguration to log what it resolved.
+func Init(ctx context.Context, cfg Config) (*Providers, error) {
+	// Export the OTEL_* defaults so autoexport and the report read the same values.
+	vars := otelEnv()
+	if err := vars.SetEnv(); err != nil {
+		return nil, err
+	}
+
+	// Warn but don't fail: without a name the SDK labels everything "unknown_service".
+	if (!cfg.SkipTraces || !cfg.SkipMetrics) && vars[otelServiceName].Value == "" {
+		fmt.Fprintln(os.Stderr, "FastEcho telemetry: OTEL_SERVICE_NAME is not set; spans and metrics will report as \"unknown_service\", collapsing every unnamed service together. Set OTEL_SERVICE_NAME to identify this service.")
 	}
 
 	res, err := newResource(ctx)
 	if err != nil {
-		return nil, Info{}, err
+		return nil, err
 	}
 
 	p := &Providers{
@@ -118,7 +121,7 @@ func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
 	if !cfg.SkipTraces {
 		exporter, err := autoexport.NewSpanExporter(ctx)
 		if err != nil {
-			return nil, Info{}, err
+			return nil, err
 		}
 		// No WithSampler on purpose: the SDK reads OTEL_TRACES_SAMPLER / _ARG
 		// itself, honouring every standard value and defaulting to
@@ -134,18 +137,18 @@ func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
 
 	if !cfg.SkipMetrics {
 		var reader sdkmetric.Reader
-		if metricsExporter() == "prometheus" {
+		if vars[otelMetricsExporter].Value == "prometheus" {
 			reg := prometheus.NewRegistry()
 			exp, err := promexporter.New(promexporter.WithRegisterer(reg))
 			if err != nil {
-				return nil, Info{}, err
+				return nil, err
 			}
 			reader = exp
 			p.PrometheusGatherer = reg
 		} else {
 			r, err := autoexport.NewMetricReader(ctx)
 			if err != nil {
-				return nil, Info{}, err
+				return nil, err
 			}
 			reader = r
 		}
@@ -157,17 +160,15 @@ func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
 		closers = append(closers, mp.Shutdown)
 
 		if err = otelruntime.Start(otelruntime.WithMeterProvider(mp)); err != nil {
-			return nil, Info{}, err
+			return nil, err
 		}
 	}
 
-	if cfg.SetGlobal {
-		otel.SetTracerProvider(p.TracerProvider)
-		otel.SetMeterProvider(p.MeterProvider)
-		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-			propagation.TraceContext{}, propagation.Baggage{},
-		))
-	}
+	otel.SetTracerProvider(p.TracerProvider)
+	otel.SetMeterProvider(p.MeterProvider)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{}, propagation.Baggage{},
+	))
 
 	// Run the closers at most once: metric readers (unlike the trace provider)
 	// return "reader is shutdown" if Shutdown is called twice, which would break
@@ -185,71 +186,67 @@ func Init(ctx context.Context, cfg Config) (*Providers, Info, error) {
 		return firstErr
 	}
 
-	return p, newInfo(cfg), nil
+	p.cfg = cfg
+	p.env = vars
+	return p, nil
 }
 
-// newInfo snapshots what Init resolved from OTEL_* env and the cfg toggles, for
-// the caller to log once at startup.
-func newInfo(cfg Config) Info {
-	info := Info{
-		ServiceName:    os.Getenv("OTEL_SERVICE_NAME"),
-		Traces:         !cfg.SkipTraces,
-		TracesExporter: env.GetEnvVarOrDefault("OTEL_TRACES_EXPORTER", "otlp"),
+// PrintConfiguration prints the resolved telemetry configuration at startup.
+func (p *Providers) PrintConfiguration() {
+	if p == nil {
+		return
 	}
+	fmt.Println("\nTelemetry configuration")
+	printKV := func(k, v string) { fmt.Printf("  %-22s : %s\n", k, v) }
+
+	tracesExporter := p.env[otelTracesExporter].Value
+	printKV("Service name", p.env[otelServiceName].Value)
+	printKV("Traces enabled", strconv.FormatBool(!p.cfg.SkipTraces))
+	printKV("Traces exporter", tracesExporter)
 	// OTLP transport is only meaningful when the traces exporter is OTLP.
-	if info.Traces && info.TracesExporter == "otlp" {
-		proto := otlpProtocol("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL")
-		info.TracesProtocol = proto
-		info.TracesEndpoint = otlpEndpoint("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", proto)
+	if !p.cfg.SkipTraces && tracesExporter == "otlp" {
+		proto := otlpProtocol(p.env, otelOTLPTracesProtocol)
+		printKV("Traces OTLP protocol", proto)
+		printKV("Traces OTLP endpoint", otlpEndpoint(otelOTLPTracesEndpoint, proto))
 	}
 
-	me := metricsExporter()
-	info.Metrics = !cfg.SkipMetrics
-	info.MetricsExporter = me
+	me := p.env[otelMetricsExporter].Value
+	delivery := "push"
 	switch {
-	case cfg.SkipMetrics:
-		info.MetricsDelivery = "off"
+	case p.cfg.SkipMetrics:
+		delivery = "off"
 	case me == "prometheus":
-		info.MetricsDelivery = "pull (/metrics)"
-	default:
-		info.MetricsDelivery = "push"
+		delivery = "pull (/metrics)"
 	}
+	printKV("Metrics enabled", strconv.FormatBool(!p.cfg.SkipMetrics))
+	printKV("Metrics exporter", me)
+	printKV("Metrics delivery", delivery)
 	// OTLP transport is only meaningful when metrics push over OTLP.
-	if info.Metrics && me == "otlp" {
-		proto := otlpProtocol("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL")
-		info.MetricsProtocol = proto
-		info.MetricsEndpoint = otlpEndpoint("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", proto)
+	if !p.cfg.SkipMetrics && me == "otlp" {
+		proto := otlpProtocol(p.env, otelOTLPMetricsProtocol)
+		printKV("Metrics OTLP protocol", proto)
+		printKV("Metrics OTLP endpoint", otlpEndpoint(otelOTLPMetricsEndpoint, proto))
 	}
-
-	return info
 }
 
-// metricsExporter returns the configured metrics exporter, defaulting to
-// prometheus so /metrics stays on the main port (the OTel SDK default is otlp).
-func metricsExporter() string {
-	return env.GetEnvVarOrDefault("OTEL_METRICS_EXPORTER", "prometheus")
-}
-
-// otlpProtocol resolves the OTLP transport for a signal: the signal-specific var
-// wins, then OTEL_EXPORTER_OTLP_PROTOCOL. Defaults to grpc to match Init's
-// backward-compat default; reading only the general var would misreport once an
-// operator sets the signal-specific one.
-func otlpProtocol(signalKey string) string {
+// otlpProtocol resolves the OTLP transport for a signal: the signal-specific
+// override (SDK-only, not in the Map) wins, else the Map-resolved general protocol.
+func otlpProtocol(vars env.Map, signalKey string) string {
 	if v := os.Getenv(signalKey); v != "" {
 		return v
 	}
-	return env.GetEnvVarOrDefault("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")
+	return vars[otelOTLPProtocol].Value
 }
 
-// otlpEndpoint reports the OTLP endpoint a signal will dial: the signal-specific
-// var wins, then OTEL_EXPORTER_OTLP_ENDPOINT, else the SDK default for the given
-// protocol (grpc => :4317, http/protobuf => :4318). Reporting the default rather
-// than "(unset)" shows the address actually used.
+// otlpEndpoint reports the endpoint a signal will dial: the signal-specific var,
+// then OTEL_EXPORTER_OTLP_ENDPOINT, else the SDK default for the protocol. Read
+// raw (no fastecho default) since the default is protocol-derived and must not
+// be exported.
 func otlpEndpoint(signalKey, protocol string) string {
 	if v := os.Getenv(signalKey); v != "" {
 		return v
 	}
-	if v := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); v != "" {
+	if v := os.Getenv(otelOTLPEndpoint); v != "" {
 		return v
 	}
 	if protocol == "grpc" {

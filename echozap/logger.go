@@ -15,6 +15,8 @@
 package echozap
 
 import (
+	"os"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -34,9 +36,10 @@ func ZapLevel(level string) zapcore.Level {
 }
 
 // New provides a logger with sane defaults for logging to server environments (dev, test, prod)
-// It configures a JSON structured logger that writes info messages to stdout
+// It configures a JSON structured logger that writes info messages to stdout.
+// The level is read from LOG_LEVEL, defaulting to dev when unset or unknown.
 func New() (*zap.Logger, error) {
-	level := env.GetLogLevel()
+	level := os.Getenv(env.LogLevel)
 
 	var config zap.Config
 	if level == env.ProdLogLevel {

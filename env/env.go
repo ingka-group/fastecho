@@ -24,7 +24,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
 
-	"github.com/ingka-group/fastecho/stringutils"
+	"github.com/ingka-group/fastecho/internal/stringutils"
 )
 
 // Map is a map of environment variables.
@@ -93,6 +93,16 @@ func (m Map) SetEnv() error {
 
 		metadata.Value = value
 		m[name] = metadata
+
+		// Export resolved values so os.Getenv readers (e.g. the OTel SDK) see
+		// what the Map resolved. Empty stays unset.
+		if value != "" {
+			if err := os.Setenv(name, value); err != nil {
+				messages = append(messages,
+					fmt.Sprintf("variable `%s` could not be exported: %v", name, err),
+				)
+			}
+		}
 	}
 
 	if len(messages) > 0 {
@@ -100,14 +110,6 @@ func (m Map) SetEnv() error {
 	}
 
 	return nil
-}
-
-// GetEnvVarOrDefault retrieves the env value for key and returns default value if env key is not set.
-func GetEnvVarOrDefault(key string, defaultValue string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return defaultValue
 }
 
 // loadEnvFile loads the variables of an env file. If it's not present, this step is skipped.

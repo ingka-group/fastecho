@@ -14,10 +14,6 @@
 
 package env
 
-import (
-	"os"
-)
-
 const (
 	// LogLevel is the environment variable name for the log level.
 	LogLevel = "LOG_LEVEL"
@@ -27,12 +23,11 @@ const (
 	ProdLogLevel = "prod"
 )
 
-// GetLogLevel reads LOG_LEVEL from the environment, falling back to DevLogLevel
-// when unset or invalid.
-func GetLogLevel() string {
-	level := os.Getenv(LogLevel)
-	if level != DevLogLevel && level != TestLogLevel && level != ProdLogLevel {
-		return DevLogLevel
+// NewLogLevelVar returns the canonical LOG_LEVEL variable: defaults to dev,
+// constrained to the known levels. Fresh *Var per call so Maps don't alias it.
+func NewLogLevelVar() *Var {
+	return &Var{
+		DefaultValue: DevLogLevel,
+		OneOf:        []string{DevLogLevel, TestLogLevel, ProdLogLevel},
 	}
-	return level
 }
