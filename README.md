@@ -86,6 +86,13 @@ func (h *Handler) GetData(ec echo.Context) error {
 
 The logger automatically includes `trace_id`, `span_id`, and `request_id` fields when available.
 
+`trace_id` and `request_id` answer different questions: a trace covers a whole
+user action, while a request id names exactly one HTTP call within it — a page
+load fanning out to five API calls shares one `trace_id`, but each call gets
+its own `request_id`, echoed back in the `X-Request-Id` response header so a
+failing call can be reported and grepped for. See
+[Correlation IDs](docs/observability.md#correlation-ids) for a worked example.
+
 ### Routing
 
 The router provides preset endpoints for swagger, monitoring and health checks. Custom endpoints can be injected via the `Routes` function in the config.

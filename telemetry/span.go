@@ -42,9 +42,9 @@ func tracer(ctx context.Context) trace.Tracer {
 
 // StartSpan starts a child span named after the calling function (formatted as
 // package.Type.Method, e.g. "forecast.Service.Recompute") and returns the updated
-// context and span; end it with defer span.End(). It uses the tracer from
-// fctx.Tracer(ctx), falling back to the global provider. For a custom name, call
-// SpanFunc or the OTel tracer API directly.
+// context and span; end it with defer span.End(). It uses the fctx-seeded
+// tracer, falling back to the global provider. For a custom name, call SpanFunc
+// or the OTel tracer API directly.
 func StartSpan(ctx context.Context, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	return tracer(ctx).Start(ctx, callerName(1), opts...)
 }

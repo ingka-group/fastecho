@@ -92,6 +92,34 @@ Discrete fields (not the raw `traceparent` header) let the log backend **query b
 
 On the trace side, the request id also rides along as a span attribute (`fastecho.request_id`), so you can find a trace from a request id and vice versa.
 
+### Why `request_id` when there's already `trace_id`?
+
+They answer different questions: a **trace identifies a whole user action**, a
+**request id identifies exactly one HTTP call** within it.
+
+Say a dashboard page load fans out to five backend requests. All five continue
+the same trace — one `trace_id`, end to end — but each call gets its own
+`request_id`:
+
+```text
+page load ─────────────────────────── trace_id: 4bf9…
+  ├─ GET /orders      request_id: 7d01…
+  ├─ GET /stock       request_id: a3f2…
+  ├─ GET /prices      request_id: c98b…   ← 500
+  ├─ GET /shipments   request_id: 1e4d…
+  └─ GET /reviews     request_id: f60a…
+```
+
+When `/prices` fails, the `trace_id` shows you the whole page load; the
+`request_id` pins down the one call that broke. It's also the ID you can hand
+to a user: fastecho echoes it back in the `X-Request-Id` response header, so
+"my request failed" arrives with a pointer you can grep for — and from that log
+line the `trace_id` takes you to the full trace.
+
+`request_id` is also the fallback when there is no trace: with sampling on, an
+unsampled request records no spans, but its `request_id` still appears on every
+log line.
+
 ---
 
 ## Traces

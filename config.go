@@ -24,6 +24,9 @@ import (
 
 // Config serves as input configuration for fastecho.
 type Config struct {
+	// ExtraEnvs declares additional env vars to resolve at boot. A key matching
+	// one of fastecho's own vars replaces that declaration entirely, default
+	// included.
 	ExtraEnvs           env.Map
 	ValidationRegistrar func(v *router.Validator) error
 	Routes              func(e *echo.Echo, r *router.Router) error

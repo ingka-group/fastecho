@@ -44,7 +44,7 @@ type Config struct {
 	HealthChecksDB   *gorm.DB
 	SwaggerTitle     string
 	SwaggerPath      string
-	MetricsGatherer  prometheus.Gatherer // OTel Prometheus exporter registry; nil under OTLP push / none
+	MetricsGatherer  prometheus.Gatherer // served at /metrics (merged OTel + default registry); nil when metrics aren't scraped
 }
 
 // Route contains the details of a route.
@@ -79,7 +79,6 @@ func NewRouter(cfg Config) (*Router, error) {
 		})
 	}
 
-	// Run the routes wrapper if it is defined.
 	if cfg.Routes != nil {
 		err := cfg.Routes(cfg.Echo, r)
 		if err != nil {
@@ -108,11 +107,12 @@ func AddRoute(r *Router, group *echo.Group, path string, handlerFunc echo.Handle
 	return r
 }
 
-// addMetrics serves the OTel Prometheus exporter's registry at /metrics, but only
-// when a gatherer is provided (OTEL_METRICS_EXPORTER=prometheus). Under OTLP push
-// the gatherer is nil and /metrics is not mounted: the default registry would only
-// hold go/process collectors, so serving it would advertise the wrong pipeline.
-// No endpoint is clearer than a misleading one.
+// addMetrics serves the provided gatherer at /metrics. With the default
+// prometheus exporter telemetry.Init supplies the merged registry (OTel
+// metrics + prometheus.DefaultGatherer); under OTLP push it supplies nil and
+// /metrics is not mounted — an endpoint without the service's real metrics
+// would advertise the wrong pipeline, and no endpoint is clearer than a
+// misleading one.
 func (r *Router) addMetrics(e *echo.Echo, gatherer prometheus.Gatherer) *Router {
 	if gatherer == nil {
 		return r
@@ -141,7 +141,6 @@ func (r *Router) addSwagger(e *echo.Echo, title, path string) *Router {
 
 // Setup configures the routes for echo.
 func (r *Router) Setup() error {
-	// register routes to echo
 	for _, route := range r.Routes {
 		if route.group == nil {
 			return errs.New("group is not defined for the route: " + route.path)

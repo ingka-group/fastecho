@@ -109,7 +109,6 @@ func Run(cfg *Config) error {
 		return err
 	}
 
-	// Allow custom Echo configuration
 	if cfg.EchoFn != nil {
 		if err = cfg.EchoFn(s.Echo); err != nil {
 			_ = s.Providers.Shutdown(context.Background())
@@ -124,7 +123,6 @@ func Run(cfg *Config) error {
 
 	s.Router.PrintRoutes(s.Echo)
 
-	// Run it!
 	return s.run(s.envs[hostname].Value, s.envs[port].Value)
 }
 
@@ -145,8 +143,8 @@ func (fe *FastEcho) Handler() http.Handler {
 }
 
 // Shutdown cleanly shuts down the server and any telemetry providers. Both are
-// always attempted and their errors joined - a telemetry-flush error must not
-// skip draining in-flight HTTP requests.
+// always attempted and their errors joined - a drain error must not skip the
+// telemetry flush, which exports the spans of the requests just drained.
 func (fe *FastEcho) Shutdown(ctx context.Context) error {
 	echoErr := fe.server.Echo.Shutdown(ctx)
 	provErr := fe.server.Providers.Shutdown(ctx)
@@ -163,7 +161,6 @@ func BindValidate(ec echo.Context, v any) error {
 }
 
 func newServer(cfg *Config) (*server, error) {
-	// Set up the server
 	s := &server{
 		workerInitialRestartDelay:  defaultWorkerInitialRestartDelay,
 		workerMaxRestartDelay:      defaultWorkerMaxRestartDelay,
@@ -252,8 +249,7 @@ func (s *server) setupLogger() error {
 }
 
 // setupTelemetry starts the telemetry providers and prints their resolved
-// configuration. telemetry.Init warns (does not fail) when a signal is enabled
-// without OTEL_SERVICE_NAME set.
+// configuration.
 func (s *server) setupTelemetry(cfg *Config) error {
 	providers, err := telemetry.Init(context.Background(), telemetry.Config{
 		SkipTraces:  cfg.Opts.Tracing.Skip,

@@ -74,13 +74,14 @@ var (
 	}
 )
 
-// NewDB creates a new *gorm.DB the configuration of which is through environment variables.
+// NewDB creates a new *gorm.DB configured through the DB_* environment
+// variables. It also runs any goose migrations found under db/migrations
+// before returning.
 func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 	var db *gorm.DB
 
 	fmt.Println("\n⚡ fastecho: initializing database")
 
-	// options are not used here
 	err := dbEnvs.SetEnv()
 	if err != nil {
 		return nil, err
@@ -192,7 +193,7 @@ func (c *dbConfig) setup(cfg *gorm.Config, logLevel string) (*gorm.DB, error) {
 	return db, nil
 }
 
-// BuildDSN builds the Data Source Name (DSN) which represents the database connection string.
+// buildDSN builds the Data Source Name (DSN) which represents the database connection string.
 func (c *dbConfig) buildDSN() (string, error) {
 	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%v TimeZone=%s",
 		c.Hostname,
