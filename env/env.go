@@ -43,10 +43,7 @@ type Var struct {
 	Optional     bool // controls whether an env variable can be missing from the .env file but still declared
 }
 
-// SetEnv resolves the declared vars from the environment (or their defaults)
-// into the Map and validates them. It is a pure resolver: the process
-// environment is never written, so defaults stay private to the Map and are
-// not seen by other libraries or child processes.
+// SetEnv reads and sets the provided list of env vars based on the Map.
 func (m Map) SetEnv() error {
 	var messages []string
 
