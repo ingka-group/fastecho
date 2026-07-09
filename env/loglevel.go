@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ingka-group/fastecho/internal/stringutils"
+	"github.com/ingka-group/fastecho/stringutils"
 )
 
 const (
