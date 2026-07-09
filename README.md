@@ -49,6 +49,20 @@ if err := fastecho.Run(&config); err != nil {
 
 ## Features
 
+- [Logger](#logger)
+- [Request context](#request-context)
+- [Routing](#routing)
+- [Request validation](#request-validation)
+- [Middleware](#middleware)
+- [Swagger](#swagger)
+- [Health probe endpoints](#health-probe-endpoints)
+- [Environment variables](#environment-variables)
+- [Observability (OpenTelemetry)](#observability-opentelemetry)
+- [Database](#database-optional)
+- [Background workers](#background-workers)
+- [Plugins](#plugins)
+- [Access Echo instance](#access-echo-instance)
+
 ### Logger
 
 We integrated `go.uber.org/zap`
@@ -71,6 +85,13 @@ func (h *Handler) GetData(ec echo.Context) error {
 ```
 
 The logger automatically includes `trace_id`, `span_id`, and `request_id` fields when available.
+
+`trace_id` and `request_id` answer different questions: a trace covers a whole
+user action, while a request id names exactly one HTTP call within it — a page
+load fanning out to five API calls shares one `trace_id`, but each call gets
+its own `request_id`, echoed back in the `X-Request-Id` response header so a
+failing call can be reported and grepped for. See
+[Correlation IDs](docs/observability.md#correlation-ids) for a worked example.
 
 ### Routing
 
@@ -161,31 +182,81 @@ config := fastecho.Config{
 }
 ```
 
-### OTEL tracing (optional)
+### Observability (OpenTelemetry)
 
-Tracing is enabled when `Opts.Tracing.Skip` is `false` (the default). The service name and exporter endpoint are configured via standard OpenTelemetry env vars:
+fastecho emits **traces + metrics** through OpenTelemetry from one shared
+resource and one shutdown. Logs stay on zap (stdout JSON) and carry
+`trace_id`/`span_id`/`request_id` so they correlate without a log exporter.
 
-| Env Variable                  | Purpose                                                             |
-|-------------------------------|---------------------------------------------------------------------|
-| `OTEL_SERVICE_NAME`           | Sets the service name for traces                                    |
-| `OTEL_RESOURCE_ATTRIBUTES`    | Additional resource attributes (e.g. `deployment.environment=prod`) |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | gRPC endpoint for the OTLP exporter                                 |
+New here? The [observability guide](docs/observability.md) explains how traces,
+metrics, and logs tie together (correlation IDs, pull vs push, exemplars) and
+what happens under the hood.
 
-| Layer                 | How                            | Effort              |
-|-----------------------|--------------------------------|---------------------|
-| HTTP requests         | Automatic via middleware       | Zero config         |
-| Database (GORM)       | `gorm.io/plugin/opentelemetry` | Add plugin yourself |
-| Service functions     | `otel.StartSpan(ctx)`          | 2 lines             |
-| Functions without ctx | `otel.SpanFunc(ctx, name, fn)` | 3 lines             |
-| Outbound HTTP         | `otelhttp.NewTransport(rt)`    | Wrap your client    |
+Behaviour is configured by standard `OTEL_*` env vars (read by the OTel SDK and
+`autoexport`); `fastecho.Opts` only carries on/off toggles.
+
+#### Env vars
+
+| Variable                       | Default                   | Effect                                                         |
+|--------------------------------|---------------------------|----------------------------------------------------------------|
+| `OTEL_SERVICE_NAME`            | (unset)                   | `service.name` on every span/metric; fastecho warns if unset while a signal is on |
+| `OTEL_RESOURCE_ATTRIBUTES`     | (unset)                   | Extra resource attrs, e.g. `service.version=1.2.3,deployment.environment=prod` |
+| `OTEL_TRACES_EXPORTER`         | `otlp`                    | `otlp` \| `console` \| `none`                                  |
+| `OTEL_METRICS_EXPORTER`        | `prometheus`              | `prometheus` (served at `/metrics`) \| `otlp` (push) \| `none` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`  | `localhost:4317`          | Collector endpoint. TLS by default; use an `http://` URL for a plaintext collector |
+| `OTEL_EXPORTER_OTLP_PROTOCOL`  | `grpc` (fastecho default) | Set `http/protobuf` for a `:4318` collector                    |
+| `OTEL_TRACES_SAMPLER`          | `parentbased_always_on`   | e.g. `parentbased_traceidratio`                                |
+| `OTEL_TRACES_SAMPLER_ARG`      | `1.0`                     | Sample ratio for the ratio samplers                            |
+| `OTEL_METRICS_EXEMPLAR_FILTER` | `trace_based`             | Which measurements carry trace exemplars                       |
+
+> `/metrics` stays on the service's main port (default `prometheus` exporter)
+> and keeps serving everything on `prometheus.DefaultGatherer` — your
+> `prometheus.MustRegister` metrics and the `go_*`/`process_*` collectors —
+> alongside the OTel output.
+> The metric is `http_server_request_duration_seconds_*` (was `echo_http_*`).
+
+#### Code toggles (`fastecho.Opts`)
+
+| Field               | Effect                            |
+|---------------------|-----------------------------------|
+| `Opts.Tracing.Skip` | Disable tracing                   |
+| `Opts.Metrics.Skip` | Disable metrics (and `/metrics`)  |
+| `Opts.Logs.Skip`    | Disable the access-log middleware |
+
+There are intentionally **no** code fields mirroring an env var (sampler ratio,
+exporter, endpoint): one source of truth per setting.
+
+#### Libraries
+
+| Concern                     | Package                                                                                                        |
+|-----------------------------|----------------------------------------------------------------------------------------------------------------|
+| SDK + API                   | [`go.opentelemetry.io/otel`](https://pkg.go.dev/go.opentelemetry.io/otel)                                      |
+| HTTP server spans + metrics | [`otelecho`](https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho) |
+| Env-driven exporters        | [`autoexport`](https://pkg.go.dev/go.opentelemetry.io/contrib/exporters/autoexport)                            |
+| Go runtime metrics          | [`instrumentation/runtime`](https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/runtime)            |
+| Outbound client transport   | [`otelhttp`](https://pkg.go.dev/go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp)                 |
+| `/metrics` exporter         | [`exporters/prometheus`](https://pkg.go.dev/go.opentelemetry.io/otel/exporters/prometheus)                     |
+| Semantic conventions        | [`semconv/v1.41.0`](https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.41.0)                               |
+
+Full env reference: [OpenTelemetry SDK environment variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/).
+
+#### Instrumentation coverage
+
+| Layer                 | How                                   | Effort              |
+|-----------------------|---------------------------------------|---------------------|
+| HTTP requests         | Automatic via middleware              | Zero config         |
+| Database (GORM)       | `gorm.io/plugin/opentelemetry`        | Add plugin yourself |
+| Service functions     | `telemetry.StartSpan(ctx)`            | 2 lines             |
+| Functions without ctx | `telemetry.SpanFunc(ctx, name, fn)`   | 3 lines             |
+| Outbound HTTP         | `telemetry.WrapClient(c)`             | Wrap your client    |
 
 Per-function tracing:
 
 ```go
-import "github.com/ingka-group/fastecho/otel"
+import "github.com/ingka-group/fastecho/telemetry"
 
 func (s *Service) Process(ctx context.Context, input Input) error {
-    ctx, span := otel.StartSpan(ctx)
+    ctx, span := telemetry.StartSpan(ctx)
     defer span.End()
     // span name auto-discovered: "mypackage.Service.Process"
     return s.repo.Save(ctx, input)
@@ -196,9 +267,17 @@ Tracing a function without context:
 
 ```go
 var result T
-otel.SpanFunc(ctx, "heavy-algorithm", func() {
+telemetry.SpanFunc(ctx, "heavy-algorithm", func() {
     result = computeHeavyAlgorithm(data)
 })
+```
+
+Outbound HTTP calls:
+
+```go
+client := telemetry.WrapClient(&http.Client{Timeout: 5 * time.Second})
+// client injects traceparent + X-Request-Id on every outbound request
+resp, err := client.Do(req.WithContext(ctx))
 ```
 
 For database tracing, add `gorm.io/plugin/opentelemetry` to your project:
@@ -210,6 +289,11 @@ _ = db.Use(tracing.NewPlugin())
 ```
 
 **Important:** Always pass context to GORM queries (`db.WithContext(ctx).Find(...)`) so DB spans attach to the request trace.
+
+#### Upgrading
+
+Upgrading from an earlier fastecho version? See [CHANGELOG.md](CHANGELOG.md) for
+the full list of breaking changes and migration steps.
 
 ### Database (optional)
 
@@ -224,8 +308,8 @@ A `Worker` is a plain function that should block until its context is cancelled:
 ```go
 config := fastecho.Config{
 	Routes: configureRoutes,
-	Workers: []fastecho.Worker{
-		func(ctx context.Context) error {
+	Workers: map[string]fastecho.Worker{
+		"pubsub-listener": func(ctx context.Context) error {
 			return pubsub.StartListener(ctx, "project", "subscription")
 		},
 	},

@@ -1,4 +1,4 @@
-// Copyright © 2024 Ingka Holding B.V. All Rights Reserved.
+// Copyright © 2026 Ingka Holding B.V. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // You may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/ingka-group/fastecho/fctx"
 )
 
 type (
@@ -75,33 +77,46 @@ func ZapLoggerMiddlewareWithConfig(log *zap.Logger, config ZapLoggerMiddlewareCo
 			req := c.Request()
 			res := c.Response()
 
-			id := req.Header.Get(echo.HeaderXRequestID)
-			if id == "" {
-				id = res.Header().Get(echo.HeaderXRequestID)
+			var lvl zapcore.Level
+			var msg string
+			switch n := res.Status; {
+			case n >= 500:
+				lvl, msg = zapcore.ErrorLevel, "Server error"
+			case n >= 400:
+				lvl, msg = zapcore.WarnLevel, "Client error"
+			case n >= 300:
+				lvl, msg = zapcore.InfoLevel, "Redirection"
+			default:
+				lvl, msg = zapcore.DebugLevel, "Success"
+			}
+			// Check before building any field: at prod level every 2xx line is
+			// dropped, and this keeps that hot path allocation-free.
+			ce := log.Check(lvl, msg)
+			if ce == nil {
+				return nil
 			}
 
-			fields := []zapcore.Field{
+			fields := append(fctx.Fields(req.Context()),
 				zap.String("remote_ip", c.RealIP()),
-				zap.String("latency", time.Since(start).String()),
+				zap.Float64("latency_ms", float64(time.Since(start))/float64(time.Millisecond)),
 				zap.String("host", req.Host),
 				zap.String("request", fmt.Sprintf("%s %s", req.Method, req.RequestURI)),
+				zap.String("path", c.Path()),
 				zap.Int("status", res.Status),
 				zap.Int64("size", res.Size),
 				zap.String("user_agent", req.UserAgent()),
-				zap.String("request_id", id),
+			)
+			if fctx.RequestID(req.Context()) == "" {
+				if reqID := res.Header().Get(echo.HeaderXRequestID); reqID != "" {
+					fields = append(fields, zap.String("request_id", reqID))
+				}
 			}
-
-			n := res.Status
-			switch {
-			case n >= 500:
-				log.With(zap.Error(err)).Error("Server error", fields...)
-			case n >= 400:
-				log.With(zap.Error(err)).Warn("Client error", fields...)
-			case n >= 300:
-				log.Info("Redirection", fields...)
-			default:
-				// noop: don't log successful requests
+			if res.Status >= 400 {
+				// zap.Error(nil) is a no-op field, so a handler writing the
+				// status directly doesn't add an empty error.
+				fields = append(fields, zap.Error(err))
 			}
+			ce.Write(fields...)
 
 			return nil
 		}

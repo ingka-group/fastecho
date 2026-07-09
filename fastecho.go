@@ -1,4 +1,4 @@
-// Copyright © 2024 Ingka Holding B.V. All Rights Reserved.
+// Copyright © 2026 Ingka Holding B.V. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // You may not use this file except in compliance with the License.
@@ -28,20 +28,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/prometheus/client_golang/prometheus"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 
 	"github.com/ingka-group/fastecho/echozap"
 	"github.com/ingka-group/fastecho/env"
 	"github.com/ingka-group/fastecho/fctx"
-	"github.com/ingka-group/fastecho/otel"
+	"github.com/ingka-group/fastecho/internal/banner"
+	"github.com/ingka-group/fastecho/internal/version"
 	"github.com/ingka-group/fastecho/router"
+	"github.com/ingka-group/fastecho/telemetry"
 )
 
 const (
@@ -75,26 +74,28 @@ var (
 		swaggerUITitle: {
 			DefaultValue: "FastEcho Service",
 		},
-		env.LogLevel: {
-			DefaultValue: env.DevLogLevel,
-			OneOf:        []string{env.DevLogLevel, env.TestLogLevel, env.ProdLogLevel},
-		},
+		env.LogLevel: env.NewLogLevelVar(),
 	}
 )
 
 // server is a wrapper around Echo.
 type server struct {
-	Echo           *echo.Echo
-	Router         *router.Router
-	Logger         *zap.Logger
-	Tracer         *trace.Tracer
-	TracerProvider *sdktrace.TracerProvider
-	Workers        []Worker
+	Echo      *echo.Echo
+	Router    *router.Router
+	Logger    *zap.Logger
+	Providers *telemetry.Providers
+	Workers   map[string]Worker
+
+	// envs is the resolved env map: the framework declarations merged with the
+	// caller's ExtraEnvs overrides. Internal reads go through it, never through
+	// the package-level declaration table (an override replaces the *Var there).
+	envs env.Map
 
 	workerInitialRestartDelay  time.Duration
 	workerMaxRestartDelay      time.Duration
 	workerStableResetThreshold time.Duration
 	workerCrashLoopThreshold   int
+	workerFailures             metric.Int64Counter
 }
 
 type FastEcho struct {
@@ -108,23 +109,21 @@ func Run(cfg *Config) error {
 		return err
 	}
 
-	// Allow custom Echo configuration
 	if cfg.EchoFn != nil {
-		err = cfg.EchoFn(s.Echo)
-		if err != nil {
+		if err = cfg.EchoFn(s.Echo); err != nil {
+			_ = s.Providers.Shutdown(context.Background())
 			return err
 		}
 	}
 
-	err = s.Router.Setup()
-	if err != nil {
+	if err = s.Router.Setup(); err != nil {
+		_ = s.Providers.Shutdown(context.Background())
 		return err
 	}
 
 	s.Router.PrintRoutes(s.Echo)
 
-	// Run it!
-	return s.run(envs[hostname].Value, envs[port].Value)
+	return s.run(s.envs[hostname].Value, s.envs[port].Value)
 }
 
 // Initialize sets up a new instance of FastEcho and returns a prepared FastEcho type, but does not
@@ -143,15 +142,13 @@ func (fe *FastEcho) Handler() http.Handler {
 	return fe.server.Echo
 }
 
-// Shutdown cleanly shuts down the server and any tracing providers.
+// Shutdown cleanly shuts down the server and any telemetry providers. Both are
+// always attempted and their errors joined - a drain error must not skip the
+// telemetry flush, which exports the spans of the requests just drained.
 func (fe *FastEcho) Shutdown(ctx context.Context) error {
-	if fe.server.TracerProvider != nil {
-		_ = fe.server.TracerProvider.Shutdown(ctx)
-	}
-	// Clean up global variables after shutdown
-	defer func() { prometheus.DefaultRegisterer = prometheus.NewRegistry() }()
-
-	return fe.server.Echo.Shutdown(ctx)
+	echoErr := fe.server.Echo.Shutdown(ctx)
+	provErr := fe.server.Providers.Shutdown(ctx)
+	return errors.Join(provErr, echoErr)
 }
 
 // BindValidate binds the request body to v and validates it using the
@@ -164,7 +161,6 @@ func BindValidate(ec echo.Context, v any) error {
 }
 
 func newServer(cfg *Config) (*server, error) {
-	// Set up the server
 	s := &server{
 		workerInitialRestartDelay:  defaultWorkerInitialRestartDelay,
 		workerMaxRestartDelay:      defaultWorkerMaxRestartDelay,
@@ -178,6 +174,8 @@ func newServer(cfg *Config) (*server, error) {
 		cfg = &Config{}
 	}
 
+	fmt.Printf("\n⚡ fastecho %s: booting\n", version.Get())
+
 	err := s.setup(cfg)
 	if err != nil {
 		return nil, err
@@ -186,29 +184,99 @@ func newServer(cfg *Config) (*server, error) {
 	return s, nil
 }
 
-// setup sets up the service with the given environment variables and an optional postgres db layer
-func (s *server) setup(cfg *Config) error {
-	var err error
-
-	// set up echo
+// setup wires the server in dependency order: env, logger, telemetry, middlewares, and routes.
+func (s *server) setup(cfg *Config) (err error) {
 	s.Echo = echo.New()
+	s.Echo.HideBanner = true
 
-	// config the service
-	err = s.config(cfg)
-	if err != nil {
+	if err = s.loadEnv(cfg); err != nil {
+		return err
+	}
+	if err = s.setupLogger(); err != nil {
+		return err
+	}
+	if err = s.setupTelemetry(cfg); err != nil {
+		return err
+	}
+	defer func() {
+		// only shutdown if we errored prematurely
+		if err != nil {
+			_ = s.Providers.Shutdown(context.Background())
+		}
+	}()
+
+	s.middlewares(cfg)
+
+	if err = s.setupRouter(cfg); err != nil {
 		return err
 	}
 
-	// set up middlewares
-	s.middlewares(cfg)
+	s.Workers = cfg.Workers
+	return nil
+}
 
-	// Print log level configuration at startup
+// loadEnv merges the framework envs with any caller-supplied extras, resolves
+// them, and keeps the resolved map on the server for every later phase.
+func (s *server) loadEnv(cfg *Config) error {
+	allEnvs := make(env.Map)
+	maps.Copy(allEnvs, envs)
+	maps.Copy(allEnvs, cfg.ExtraEnvs)
+
+	if err := allEnvs.SetEnv(); err != nil {
+		return err
+	}
+	s.envs = allEnvs
+	return nil
+}
+
+// setupLogger builds the zap logger and reports the resolved log level.
+func (s *server) setupLogger() error {
+	// Normalized read (warn + dev fallback on unknown values) — the same value
+	// echozap.New builds the logger from, so the banner cannot disagree with it.
 	logLevel := env.GetLogLevel()
-	printBanner("fastecho log configuration",
+	logger, err := echozap.New()
+	if err != nil {
+		return err
+	}
+	s.Logger = logger
+
+	banner.Section("Log configuration",
 		"LOG_LEVEL (env)", logLevel,
 		"EchoZap level", s.Logger.Level().String(),
 	)
 
+	return nil
+}
+
+// setupTelemetry starts the telemetry providers and prints their resolved
+// configuration.
+func (s *server) setupTelemetry(cfg *Config) error {
+	providers, err := telemetry.Init(context.Background(), telemetry.Config{
+		SkipTraces:  cfg.Opts.Tracing.Skip,
+		SkipMetrics: cfg.Opts.Metrics.Skip,
+	})
+	if err != nil {
+		return err
+	}
+	s.Providers = providers
+
+	// One counter for all workers, labelled per worker/kind at record time.
+	// Created here by construction so it exists whenever workers can run;
+	// MeterProvider is always non-nil (noop when metrics are skipped).
+	s.workerFailures, _ = providers.MeterProvider.Meter(telemetry.ScopeName).Int64Counter(
+		"fastecho.worker.failures",
+		metric.WithDescription("background worker panics and error exits"),
+		metric.WithUnit("{failure}"),
+	)
+
+	s.Providers.PrintConfiguration()
+
+	return nil
+}
+
+// setupRouter builds the router and validator, then registers caller and plugin
+// routes and validations onto them.
+func (s *server) setupRouter(cfg *Config) error {
 	fastechoRouter, err := router.NewRouter(
 		router.Config{
 			Echo:             s.Echo,
@@ -216,147 +284,117 @@ func (s *server) setup(cfg *Config) error {
 			SkipMetrics:      cfg.Opts.Metrics.Skip,
 			SkipHealthChecks: cfg.Opts.HealthChecks.Skip,
 			HealthChecksDB:   cfg.Opts.HealthChecks.DB,
-			SwaggerTitle:     envs[swaggerUITitle].Value,
-			SwaggerPath:      envs[swaggerJSONPath].Value,
+			SwaggerTitle:     s.envs[swaggerUITitle].Value,
+			SwaggerPath:      s.envs[swaggerJSONPath].Value,
+			MetricsGatherer:  s.Providers.PrometheusGatherer,
 		},
 	)
 	if err != nil {
 		return err
 	}
 
-	// set up validation
 	vdt, err := router.NewValidator()
 	if err != nil {
 		return err
 	}
 	if cfg.ValidationRegistrar != nil {
-		// register custom validations
-		err = cfg.ValidationRegistrar(vdt)
-		if err != nil {
+		if err = cfg.ValidationRegistrar(vdt); err != nil {
 			return err
 		}
 	}
-	// register plugin validations and routes
+
 	for _, plugin := range cfg.Plugins {
 		if plugin.ValidationRegistrar != nil {
-			err = plugin.ValidationRegistrar(vdt)
-			if err != nil {
+			if err = plugin.ValidationRegistrar(vdt); err != nil {
 				return errors.New("error registering plugin validation: " + err.Error())
 			}
 		}
-		// Register plugin routes
 		fmt.Println("Registering plugin routes")
-		err = plugin.Routes(s.Echo, fastechoRouter)
-		if err != nil {
+		if err = plugin.Routes(s.Echo, fastechoRouter); err != nil {
 			return errors.New("error registering plugin routes: " + err.Error())
 		}
 	}
+
 	s.Echo.Validator = vdt
 	s.Router = fastechoRouter
-	s.Workers = cfg.Workers
-
-	return err
-}
-
-func (s *server) config(cfg *Config) error {
-	// Set environment variables MUST be the first step
-	// merge default env vars with extra env vars
-
-	var allEnvs = make(env.Map)
-	maps.Copy(allEnvs, envs)
-	maps.Copy(allEnvs, cfg.ExtraEnvs)
-
-	err := allEnvs.SetEnv()
-	if err != nil {
-		return err
-	}
-
-	logger, err := echozap.New()
-	if err != nil {
-		return err
-	}
-	s.Logger = logger
-
-	// only init tracing if it's not disabled
-	var tracerProvider *sdktrace.TracerProvider
-	var tracer *trace.Tracer
-
-	// enable/disable tracing
-	if !cfg.Opts.Tracing.Skip {
-		tracerProvider, tracer, err = newTracer()
-		if err != nil {
-			return err
-		}
-
-		s.Tracer = tracer
-		s.TracerProvider = tracerProvider
-	}
 
 	return nil
 }
 
 // middlewares configures all the middlewares for Echo.
 func (s *server) middlewares(cfg *Config) {
-	if !cfg.Opts.Tracing.Skip {
-		s.Echo.Use(otel.Middleware(
-			otel.WithSkipper(func(ctx echo.Context) bool {
-				return isSwaggerRoute(ctx) || isMetricsRoute(ctx) || isHealthRoute(ctx)
-			}),
-		))
+	skip := func(c echo.Context) bool {
+		return isSwaggerRoute(c) || isMetricsRoute(c) || isHealthRoute(c)
 	}
 
-	// Request ID
-	s.Echo.Use(middleware.RequestIDWithConfig(middleware.RequestIDConfig{
-		Skipper: func(ctx echo.Context) bool {
-			return isSwaggerRoute(ctx) || isMetricsRoute(ctx) || isHealthRoute(ctx)
-		},
-		Generator: func() string {
-			return uuid.New().String()
-		},
-	}))
-
-	// Zap Logger
-	s.Echo.Use(echozap.ZapLoggerMiddlewareWithConfig(s.Logger, echozap.ZapLoggerMiddlewareConfig{
-		Skipper: func(ctx echo.Context) bool {
-			return isSwaggerRoute(ctx) || isMetricsRoute(ctx) || isHealthRoute(ctx)
-		},
-	}))
-
-	// Context
-	var tracer trace.Tracer
-	if s.Tracer != nil {
-		tracer = *s.Tracer
-	}
-	s.Echo.Use(fctx.Middleware(s.Logger, tracer))
-
-	// Gzip
-	s.Echo.Use(middleware.GzipWithConfig(middleware.GzipConfig{
-		Skipper: func(ctx echo.Context) bool {
-			return isSwaggerRoute(ctx) || isMetricsRoute(ctx)
-		},
-	}))
-
-	// Metrics
-	if !cfg.Opts.Metrics.Skip {
-		s.Echo.Use(echoprometheus.NewMiddleware("echo_http"))
-	}
-
-	// Recover
+	// 1. Safety net, outermost: catches panics thrown by the middlewares
+	// themselves. Handler panics are caught by the inner recover (registered
+	// last), which still sees the span and correlation context; by the time a
+	// panic unwinds to this layer otelecho has restored the pre-request
+	// context, so this logs bare.
 	s.Echo.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{
 		DisablePrintStack: true,
 		LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
 			req := c.Request()
-			spanCtx := trace.SpanContextFromContext(req.Context())
-			s.Logger.Error("panic recovered",
+			s.Logger.Error("panic recovered (middleware)",
+				zap.Error(err),
+				zap.String("method", req.Method),
+				zap.String("uri", req.RequestURI),
+				zap.ByteString("stack", stack),
+			)
+			return err
+		},
+	}))
+
+	// 2. Request ID, before trace: so it can be set as a span attribute.
+	s.Echo.Use(middleware.RequestIDWithConfig(middleware.RequestIDConfig{
+		Skipper:   skip,
+		Generator: fctx.NewRequestID,
+	}))
+
+	// 3. otelecho trace + metrics, registered only when a signal is on.
+	if !cfg.Opts.Tracing.Skip || !cfg.Opts.Metrics.Skip {
+		s.Echo.Use(otelecho.Middleware(
+			"", // Left blank as it derives server.address from the request Host
+			otelecho.WithTracerProvider(s.Providers.TracerProvider),
+			otelecho.WithMeterProvider(s.Providers.MeterProvider),
+			otelecho.WithSkipper(skip),
+		))
+	}
+
+	// 4. fctx: enriches the request logger + sets fastecho.request_id on the span.
+	// Providers is always non-nil; a noop tracer when tracing is skipped.
+	tracer := s.Providers.TracerProvider.Tracer(telemetry.ScopeName)
+	s.Echo.Use(fctx.Middleware(s.Logger, tracer))
+
+	// 5. Gzip.
+	s.Echo.Use(middleware.GzipWithConfig(middleware.GzipConfig{
+		Skipper: func(c echo.Context) bool { return isSwaggerRoute(c) || isMetricsRoute(c) },
+	}))
+
+	// 6. Access log: sees the final status of every request, including panics
+	// converted to errors by the recover below it.
+	if !cfg.Opts.Logs.Skip {
+		s.Echo.Use(echozap.ZapLoggerMiddlewareWithConfig(s.Logger, echozap.ZapLoggerMiddlewareConfig{
+			Skipper: skip,
+		}))
+	}
+
+	// 7. Recover, innermost: converts handler panics to errors while the span,
+	// request logger, and request id are still live, so the access log, the
+	// HTTP metrics, the span status, and this log line all record the failure.
+	s.Echo.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{
+		DisablePrintStack: true,
+		LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
+			req := c.Request()
+			fields := append(fctx.Fields(req.Context()),
 				zap.Error(err),
 				zap.String("method", req.Method),
 				zap.String("path", c.Path()),
 				zap.String("uri", req.RequestURI),
-				zap.String("request_id", c.Response().Header().Get(echo.HeaderXRequestID)),
-				zap.String("trace_id", spanCtx.TraceID().String()),
-				zap.String("span_id", spanCtx.SpanID().String()),
 				zap.ByteString("stack", stack),
 			)
+			s.Logger.Error("panic recovered", fields...)
 			return err
 		},
 	}))
@@ -381,20 +419,15 @@ func (s *server) run(host string, port string) error {
 
 // serve starts the HTTP server and shuts it down gracefully once ctx is done.
 func (s *server) serve(ctx context.Context, host string, port string) error {
-	// Defer the shutdown of the tracer provider
-	defer func() {
-		if s.TracerProvider != nil {
-			_ = s.TracerProvider.Shutdown(context.Background())
-		}
-	}()
+	defer func() { _ = s.Providers.Shutdown(context.Background()) }()
 
 	// Flush buffered logs on the way out
 	defer func() { _ = s.Logger.Sync() }()
 
 	// Start background workers, tracked so shutdown can wait for them to drain.
 	var workers sync.WaitGroup
-	for _, w := range s.Workers {
-		workers.Go(func() { s.runWorker(ctx, w) })
+	for name, w := range s.Workers {
+		workers.Go(func() { s.runWorker(ctx, name, w) })
 	}
 
 	// Start server

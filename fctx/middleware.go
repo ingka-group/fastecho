@@ -18,6 +18,7 @@ import (
 	"context"
 
 	"github.com/labstack/echo/v4"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -52,22 +53,14 @@ func Middleware(logger *zap.Logger, tracer trace.Tracer) echo.MiddlewareFunc {
 			req := ec.Request()
 			ctx := req.Context()
 
-			var fields []zap.Field
-
-			if spanCtx := trace.SpanContextFromContext(ctx); spanCtx.IsValid() {
-				fields = append(fields,
-					zap.String("trace_id", spanCtx.TraceID().String()),
-					zap.String("span_id", spanCtx.SpanID().String()),
+			if reqID := ec.Response().Header().Get(echo.HeaderXRequestID); reqID != "" {
+				ctx = WithRequestID(ctx, reqID)
+				trace.SpanFromContext(ctx).SetAttributes(
+					attribute.String("fastecho.request_id", reqID),
 				)
 			}
 
-			if reqID := ec.Response().Header().Get(echo.HeaderXRequestID); reqID != "" {
-				fields = append(fields, zap.String("request_id", reqID))
-				ctx = WithRequestID(ctx, reqID)
-			}
-
-			ctx = WithLogger(ctx, logger.With(fields...))
-
+			ctx = WithLogger(ctx, logger.With(Fields(ctx)...))
 			if tracer != nil {
 				ctx = WithTracer(ctx, tracer)
 			}

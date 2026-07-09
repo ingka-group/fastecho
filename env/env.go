@@ -1,4 +1,4 @@
-// Copyright © 2024 Ingka Holding B.V. All Rights Reserved.
+// Copyright © 2026 Ingka Holding B.V. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // You may not use this file except in compliance with the License.
@@ -19,11 +19,12 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
 
-	"github.com/ingka-group/fastecho/stringutils"
+	"github.com/ingka-group/fastecho/internal/stringutils"
 )
 
 // Map is a map of environment variables.
@@ -102,10 +103,15 @@ func (m Map) SetEnv() error {
 }
 
 // loadEnvFile loads the variables of an env file. If it's not present, this step is skipped.
+// Runs once: SetEnv is called per env Map, but the .env only needs loading once.
 func loadEnvFile(filename string) {
-	err := godotenv.Load(filename)
-	// Don't stop or fail if the .env file doesn't exist.
-	if errors.Is(err, os.ErrNotExist) {
-		fmt.Printf("'%s' configuration file doesn't exist. Don't worry, fastecho will read the environment variables.", filename)
-	}
+	loadEnvOnce.Do(func() {
+		err := godotenv.Load(filename)
+		// Don't stop or fail if the .env file doesn't exist.
+		if errors.Is(err, os.ErrNotExist) {
+			fmt.Printf("Loading environment variables. '%s' configuration file doesn't exist. Don't worry, fastecho will read the environment variables.\n", filename)
+		}
+	})
 }
+
+var loadEnvOnce sync.Once

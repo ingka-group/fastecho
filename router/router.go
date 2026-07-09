@@ -1,4 +1,4 @@
-// Copyright © 2024 Ingka Holding B.V. All Rights Reserved.
+// Copyright © 2026 Ingka Holding B.V. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // You may not use this file except in compliance with the License.
@@ -17,9 +17,12 @@ package router
 import (
 	"fmt"
 	"net/http"
+	"slices"
+	"strings"
 
-	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	swguicdn "github.com/swaggest/swgui/v5cdn"
 	"gorm.io/gorm"
 
@@ -41,6 +44,7 @@ type Config struct {
 	HealthChecksDB   *gorm.DB
 	SwaggerTitle     string
 	SwaggerPath      string
+	MetricsGatherer  prometheus.Gatherer // served at /metrics (merged OTel + default registry); nil when metrics aren't scraped
 }
 
 // Route contains the details of a route.
@@ -75,7 +79,6 @@ func NewRouter(cfg Config) (*Router, error) {
 		})
 	}
 
-	// Run the routes wrapper if it is defined.
 	if cfg.Routes != nil {
 		err := cfg.Routes(cfg.Echo, r)
 		if err != nil {
@@ -84,7 +87,7 @@ func NewRouter(cfg Config) (*Router, error) {
 	}
 
 	if !cfg.SkipMetrics {
-		r.addMetrics(cfg.Echo)
+		r.addMetrics(cfg.Echo, cfg.MetricsGatherer)
 	}
 
 	r.addSwagger(cfg.Echo, cfg.SwaggerTitle, cfg.SwaggerPath)
@@ -104,9 +107,22 @@ func AddRoute(r *Router, group *echo.Group, path string, handlerFunc echo.Handle
 	return r
 }
 
-// addMetrics adds a handler for metrics.
-func (r *Router) addMetrics(e *echo.Echo) *Router {
-	e.GET("/metrics", echoprometheus.NewHandler())
+// addMetrics serves the provided gatherer at /metrics. With the default
+// prometheus exporter telemetry.Init supplies the merged registry (OTel
+// metrics + prometheus.DefaultGatherer); under OTLP push it supplies nil and
+// /metrics is not mounted — an endpoint without the service's real metrics
+// would advertise the wrong pipeline, and no endpoint is clearer than a
+// misleading one.
+func (r *Router) addMetrics(e *echo.Echo, gatherer prometheus.Gatherer) *Router {
+	if gatherer == nil {
+		return r
+	}
+	// EnableOpenMetrics so exemplars (the trace_id/span_id the OTel exporter attaches
+	// to metrics) survive exposition; the classic Prometheus text format can't encode
+	// them. Content-negotiated, so a non-OpenMetrics scraper still gets plain text.
+	e.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
+		EnableOpenMetrics: true,
+	})))
 	return r
 }
 
@@ -125,7 +141,6 @@ func (r *Router) addSwagger(e *echo.Echo, title, path string) *Router {
 
 // Setup configures the routes for echo.
 func (r *Router) Setup() error {
-	// register routes to echo
 	for _, route := range r.Routes {
 		if route.group == nil {
 			return errs.New("group is not defined for the route: " + route.path)
@@ -151,12 +166,21 @@ func (r *Router) Setup() error {
 	return nil
 }
 
-// PrintRoutes prints all the available routes registered in the Echo framework.
+// PrintRoutes prints all the available routes registered in the Echo framework,
+// sorted by path then method so the boot output is stable across restarts.
 func (r *Router) PrintRoutes(e *echo.Echo) {
-	fmt.Println("\nRegistered routes:")
-	for _, route := range e.Routes() {
-		fmt.Println(route.Method, " ", route.Path)
+	routes := e.Routes()
+	slices.SortFunc(routes, func(a, b *echo.Route) int {
+		if a.Path != b.Path {
+			return strings.Compare(a.Path, b.Path)
+		}
+		return strings.Compare(a.Method, b.Method)
+	})
+	fmt.Println("\nRoutes configuration")
+	for _, route := range routes {
+		fmt.Printf("  %-6s %s\n", route.Method, route.Path)
 	}
+	fmt.Println()
 }
 
 // serveSwaggerUI serves the swagger UI.

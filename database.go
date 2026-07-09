@@ -1,4 +1,4 @@
-// Copyright © 2024 Ingka Holding B.V. All Rights Reserved.
+// Copyright © 2026 Ingka Holding B.V. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // You may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -29,6 +28,7 @@ import (
 	"gorm.io/gorm/logger"
 
 	"github.com/ingka-group/fastecho/env"
+	"github.com/ingka-group/fastecho/internal/banner"
 )
 
 const (
@@ -70,14 +70,18 @@ var (
 		dbMaxConnLifeTime: {
 			DefaultValue: "1h",
 		},
+		env.LogLevel: env.NewLogLevelVar(),
 	}
 )
 
-// NewDB creates a new *gorm.DB the configuration of which is through environment variables.
+// NewDB creates a new *gorm.DB configured through the DB_* environment
+// variables. It also runs any goose migrations found under db/migrations
+// before returning.
 func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 	var db *gorm.DB
 
-	// options are not used here
+	fmt.Println("\n⚡ fastecho: initializing database")
+
 	err := dbEnvs.SetEnv()
 	if err != nil {
 		return nil, err
@@ -87,6 +91,10 @@ func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 	if err != nil {
 		lifetime = time.Hour
 	}
+
+	// Normalized read: an unknown LOG_LEVEL warns and falls back to dev instead
+	// of failing NewDB.
+	logLevel := env.GetLogLevel()
 
 	dbConf := &dbConfig{
 		Hostname:        dbEnvs[dbHostname].Value,
@@ -101,14 +109,13 @@ func NewDB(cfg *gorm.Config) (*gorm.DB, error) {
 		ConnMaxLifetime: lifetime,
 	}
 
-	db, err = dbConf.setup(cfg)
+	db, err = dbConf.setup(cfg, logLevel)
 	if err != nil {
 		return nil, err
 	}
 
-	logLevel := env.GetLogLevel()
 	_, gormLevelStr := gormLogLevel(logLevel)
-	printBanner("fastecho database configuration",
+	banner.Section("Database configuration",
 		"LOG_LEVEL (env)", logLevel,
 		"GORM level", gormLevelStr,
 	)
@@ -153,16 +160,16 @@ func gormLogLevel(level string) (logger.LogLevel, string) {
 }
 
 // setup creates a new database based on the configuration given.
-func (c *dbConfig) setup(cfg *gorm.Config) (*gorm.DB, error) {
+func (c *dbConfig) setup(cfg *gorm.Config, logLevel string) (*gorm.DB, error) {
 	dsn, err := c.buildDSN()
 	if err != nil {
 		return nil, err
 	}
 
 	if cfg == nil {
-		logLevel, _ := gormLogLevel(env.GetLogLevel())
+		gormLevel, _ := gormLogLevel(logLevel)
 		cfg = &gorm.Config{
-			Logger: logger.Default.LogMode(logLevel),
+			Logger: logger.Default.LogMode(gormLevel),
 		}
 	}
 
@@ -186,7 +193,7 @@ func (c *dbConfig) setup(cfg *gorm.Config) (*gorm.DB, error) {
 	return db, nil
 }
 
-// BuildDSN builds the Data Source Name (DSN) which represents the database connection string.
+// buildDSN builds the Data Source Name (DSN) which represents the database connection string.
 func (c *dbConfig) buildDSN() (string, error) {
 	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%v TimeZone=%s",
 		c.Hostname,
@@ -223,7 +230,7 @@ func migrateDB(db *sql.DB) error {
 			return results[i].Error
 		}
 
-		log.Println("[", i+1, "] Migration applied:", results[i].Source.Path)
+		fmt.Printf("  [%d] Migration applied: %s\n", i+1, results[i].Source.Path)
 	}
 
 	return nil

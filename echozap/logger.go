@@ -1,4 +1,4 @@
-// Copyright © 2024 Ingka Holding B.V. All Rights Reserved.
+// Copyright © 2026 Ingka Holding B.V. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // You may not use this file except in compliance with the License.
@@ -34,7 +34,8 @@ func ZapLevel(level string) zapcore.Level {
 }
 
 // New provides a logger with sane defaults for logging to server environments (dev, test, prod)
-// It configures a JSON structured logger that writes info messages to stdout
+// It configures a JSON structured logger that writes info messages to stdout.
+// The level is read from LOG_LEVEL, defaulting to dev when unset or unknown.
 func New() (*zap.Logger, error) {
 	level := env.GetLogLevel()
 
@@ -52,8 +53,8 @@ func New() (*zap.Logger, error) {
 	// Override log level based on fastecho logic above
 	config.Level = zap.NewAtomicLevelAt(ZapLevel(level))
 
-	// Use CapitalLevelEncoder in all envs
-	config.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	// Use lowercase to prevent flakiness in log coloring in common tooling like Loki.
+	config.EncoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
 
 	// Use human-readable timestamp
 	config.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder

@@ -1,4 +1,4 @@
-// Copyright © 2024 Ingka Holding B.V. All Rights Reserved.
+// Copyright © 2026 Ingka Holding B.V. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // You may not use this file except in compliance with the License.
@@ -24,6 +24,9 @@ import (
 
 // Config serves as input configuration for fastecho.
 type Config struct {
+	// ExtraEnvs declares additional env vars to resolve at boot. A key matching
+	// one of fastecho's own vars replaces that declaration entirely, default
+	// included.
 	ExtraEnvs           env.Map
 	ValidationRegistrar func(v *router.Validator) error
 	Routes              func(e *echo.Echo, r *router.Router) error
@@ -33,15 +36,16 @@ type Config struct {
 	Plugins      []Plugin
 	EchoFn       func(e *echo.Echo) error
 	// Workers are long-running background processes managed by fastecho's
-	// lifecycle. Each is started in its own goroutine and receives a context
-	// that is cancelled on shutdown.
-	Workers []Worker
+	// lifecycle, keyed by name. Each runs in its own goroutine with a context that
+	// is cancelled on shutdown; its logs/spans are tagged worker=<name>.
+	Workers map[string]Worker
 }
 
 // Opts define configuration options for fastecho.
 type Opts struct {
 	Metrics      MetricsOpts      `json:"metrics"`
 	Tracing      TracingOpts      `json:"tracing"`
+	Logs         LogsOpts         `json:"logs"`
 	HealthChecks HealthChecksOpts `json:"health_checks"`
 }
 
@@ -52,6 +56,11 @@ type MetricsOpts struct {
 
 // TracingOpts define configuration options for tracing.
 type TracingOpts struct {
+	Skip bool `json:"skip"`
+}
+
+// LogsOpts define configuration options for logging.
+type LogsOpts struct {
 	Skip bool `json:"skip"`
 }
 

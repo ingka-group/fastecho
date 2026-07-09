@@ -1,4 +1,4 @@
-// Copyright © 2024 Ingka Holding B.V. All Rights Reserved.
+// Copyright © 2026 Ingka Holding B.V. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // You may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@ package env
 import (
 	"fmt"
 	"os"
+
+	"github.com/ingka-group/fastecho/internal/stringutils"
 )
 
 const (
@@ -28,14 +30,27 @@ const (
 	ProdLogLevel = "prod"
 )
 
-// GetLogLevel reads LOG_LEVEL from the environment and falls back to DevLevel if invalid.
+var logLevels = []string{DevLogLevel, TestLogLevel, ProdLogLevel}
+
+// NewLogLevelVar returns the canonical LOG_LEVEL variable: defaults to dev.
+// Deliberately not constrained via OneOf: an unknown value must not fail
+// startup — consumers normalize it through GetLogLevel (warn + dev fallback),
+// matching pre-OTel releases. Fresh *Var per call so Maps don't alias it.
+func NewLogLevelVar() *Var {
+	return &Var{
+		DefaultValue: DevLogLevel,
+	}
+}
+
+// GetLogLevel reads LOG_LEVEL, falling back to dev when unset or unknown.
+// A set-but-unknown value warns so the misconfiguration is not silent.
 func GetLogLevel() string {
 	level := os.Getenv(LogLevel)
-
-	if level != DevLogLevel && level != TestLogLevel && level != ProdLogLevel {
-		fmt.Printf("no valid %s set, falling back to %s\n", LogLevel, DevLogLevel)
-		level = DevLogLevel
+	if !stringutils.ExistsInSlice(level, logLevels) {
+		if level != "" {
+			fmt.Printf("no valid %s set (%q), falling back to %s\n", LogLevel, level, DevLogLevel)
+		}
+		return DevLogLevel
 	}
-
 	return level
 }

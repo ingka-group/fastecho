@@ -13,6 +13,14 @@ repos:
         exclude: ^(docs/swagger.*|newman|templates/copyright-header.tpl)
       - id: trailing-whitespace
 
+  # Ensure every source file carries the Apache-2.0 copyright header.
+  - repo: https://github.com/google/addlicense
+    rev: v1.2.0
+    hooks:
+      - id: addlicense
+        args: [ -c, "Ingka Holding B.V.", -f, templates/copyright-header.tpl ]
+        files: \.go$
+
   # Here we partition the hooks to improve on the sequence of checks (heaviest check last)
   - repo: &golang-repo https://github.com/tekwizely/pre-commit-golang
     rev: &golang-rev v1.0.0-rc.1

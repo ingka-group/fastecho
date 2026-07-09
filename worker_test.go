@@ -1,4 +1,4 @@
-// Copyright © 2024 Ingka Holding B.V. All Rights Reserved.
+// Copyright © 2026 Ingka Holding B.V. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // You may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -27,22 +28,34 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/trace/embedded"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/goleak"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/ingka-group/fastecho/fctx"
+	"github.com/ingka-group/fastecho/telemetry"
 )
 
 // newObserverServer builds a bare server whose logs are captured for assertions.
 func newObserverServer() (*server, *observer.ObservedLogs) {
 	core, logs := observer.New(zapcore.InfoLevel)
 	return &server{
-		Echo:                       echo.New(),
-		Logger:                     zap.New(core),
+		Echo:   echo.New(),
+		Logger: zap.New(core),
+		Providers: &telemetry.Providers{
+			TracerProvider: tracenoop.NewTracerProvider(),
+			MeterProvider:  metricnoop.NewMeterProvider(),
+		},
+		workerFailures:             noopWorkerFailures(),
 		workerInitialRestartDelay:  1 * time.Millisecond,
 		workerMaxRestartDelay:      10 * time.Millisecond,
 		workerStableResetThreshold: 1 * time.Second,
@@ -54,8 +67,8 @@ func TestServeCancelsWorkerContextOnShutdown(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	s := newTestServer()
 	cancelled := make(chan struct{})
-	s.Workers = []Worker{
-		func(ctx context.Context) error {
+	s.Workers = map[string]Worker{
+		"cancel-worker": func(ctx context.Context) error {
 			<-ctx.Done()
 			close(cancelled)
 			return ctx.Err()
@@ -86,8 +99,8 @@ func TestServeWaitsForWorkersOnShutdown(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	s := newTestServer()
 	var drained atomic.Bool
-	s.Workers = []Worker{
-		func(ctx context.Context) error {
+	s.Workers = map[string]Worker{
+		"drain-worker": func(ctx context.Context) error {
 			<-ctx.Done()
 			time.Sleep(100 * time.Millisecond)
 			drained.Store(true)
@@ -114,14 +127,14 @@ func TestServeSurvivesFailingWorkers(t *testing.T) {
 	defer goleak.VerifyNone(t)
 	s := newTestServer()
 	healthy := make(chan struct{})
-	s.Workers = []Worker{
-		func(ctx context.Context) error {
+	s.Workers = map[string]Worker{
+		"error-worker": func(ctx context.Context) error {
 			return errors.New("boom")
 		},
-		func(ctx context.Context) error {
+		"panic-worker": func(ctx context.Context) error {
 			panic("kaboom")
 		},
-		func(ctx context.Context) error {
+		"healthy-worker": func(ctx context.Context) error {
 			close(healthy)
 			<-ctx.Done()
 			return nil
@@ -183,7 +196,7 @@ func TestRunWorkerOnce(t *testing.T) {
 			s, logs := newObserverServer()
 
 			assert.NotPanics(t, func() {
-				s.runWorkerOnce(context.Background(), tt.worker)
+				s.runWorkerOnce(context.Background(), "test-worker", tt.worker)
 			})
 
 			if tt.wantMessage == "" {
@@ -201,16 +214,10 @@ func TestRunWorkerOnce(t *testing.T) {
 	}
 }
 
-type stubTracer struct{ embedded.Tracer }
-
-func (stubTracer) Start(ctx context.Context, _ string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return ctx, nil
-}
-
 func TestRunWorkerInjectsLogger(t *testing.T) {
 	s, logs := newObserverServer()
 
-	s.runWorkerOnce(context.Background(), func(ctx context.Context) error {
+	s.runWorkerOnce(context.Background(), "log-worker", func(ctx context.Context) error {
 		fctx.Logger(ctx).Info("from worker")
 		return nil
 	})
@@ -219,19 +226,158 @@ func TestRunWorkerInjectsLogger(t *testing.T) {
 		"worker context should carry the server logger, not the no-op fallback")
 }
 
-func TestRunWorkerInjectsTracer(t *testing.T) {
-	s, _ := newObserverServer()
-	var tracer trace.Tracer = stubTracer{}
-	s.Tracer = &tracer
+func TestRunWorkerOnce_SeedsContext(t *testing.T) {
+	rec := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
 
-	var got trace.Tracer
-	s.runWorkerOnce(context.Background(), func(ctx context.Context) error {
-		got = fctx.Tracer(ctx)
+	core, logs := observer.New(zapcore.DebugLevel)
+	s := &server{
+		Logger:    zap.New(core),
+		Providers: &telemetry.Providers{TracerProvider: tp},
+	}
+
+	var gotReqID string
+	s.runWorkerOnce(t.Context(), "widget-worker", func(ctx context.Context) error {
+		gotReqID = fctx.RequestID(ctx)
+		_, span := fctx.Tracer(ctx).Start(ctx, "iteration")
+		fctx.Logger(ctx).Info("working")
+		span.End()
 		return nil
 	})
 
-	assert.IsType(t, stubTracer{}, got,
-		"worker context should carry the server tracer, not the no-op fallback")
+	assert.NotEmpty(t, gotReqID, "worker request id seeded")
+	// Don't assert the logger/tracer by identity comparison (zap.NewNop() returns
+	// a fresh pointer and fctx.Tracer never returns nil, so both would trivially
+	// pass). Their effect is the real proof: the span below was exported on the
+	// seeded provider, it carries worker=<name>, and the log line carries worker.
+	require.Len(t, rec.Ended(), 1, "worker span exported (tracer seeded, non-noop)")
+	spanAttrs := map[string]string{}
+	for _, kv := range rec.Ended()[0].Attributes() {
+		spanAttrs[string(kv.Key)] = kv.Value.AsString()
+	}
+	assert.Equal(t, "widget-worker", spanAttrs["worker"], "worker spans carry worker=<name>")
+	require.Equal(t, 1, logs.FilterMessage("working").Len())
+	assert.Equal(t, "widget-worker", logs.All()[0].ContextMap()["worker"])
+	assert.Equal(t, gotReqID, logs.All()[0].ContextMap()["request_id"])
+}
+
+// Worker log lines written inside a span must carry trace_id/span_id — the
+// same correlation the docs promise for request logs.
+func TestWorkerLogsInsideSpan_CarryTraceIDs(t *testing.T) {
+	rec := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+
+	core, logs := observer.New(zapcore.DebugLevel)
+	s := &server{
+		Logger:    zap.New(core),
+		Providers: &telemetry.Providers{TracerProvider: tp},
+	}
+
+	s.runWorkerOnce(t.Context(), "span-worker", func(ctx context.Context) error {
+		ctx, span := fctx.Tracer(ctx).Start(ctx, "unit")
+		fctx.Logger(ctx).Info("inside span")
+		span.End()
+		return nil
+	})
+
+	require.Len(t, rec.Ended(), 1)
+	sc := rec.Ended()[0].SpanContext()
+	entries := logs.FilterMessage("inside span").All()
+	require.Len(t, entries, 1)
+	cm := entries[0].ContextMap()
+	assert.Equal(t, sc.TraceID().String(), cm["trace_id"], "worker log inside a span carries its trace id")
+	assert.Equal(t, sc.SpanID().String(), cm["span_id"])
+	assert.NotEmpty(t, cm["request_id"])
+	assert.Equal(t, "span-worker", cm["worker"])
+}
+
+// Worker spans carry the per-run request id, mirroring the fastecho.request_id
+// attribute HTTP server spans get from fctx.Middleware.
+func TestWorkerSpan_CarriesRequestID(t *testing.T) {
+	rec := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(rec))
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+
+	s := &server{Logger: zap.NewNop(), Providers: &telemetry.Providers{TracerProvider: tp}}
+
+	var reqID string
+	s.runWorkerOnce(t.Context(), "rid-worker", func(ctx context.Context) error {
+		reqID = fctx.RequestID(ctx)
+		_, span := fctx.Tracer(ctx).Start(ctx, "unit")
+		span.End()
+		return nil
+	})
+
+	require.NotEmpty(t, reqID)
+	require.Len(t, rec.Ended(), 1)
+	attrs := map[string]string{}
+	for _, kv := range rec.Ended()[0].Attributes() {
+		attrs[string(kv.Key)] = kv.Value.AsString()
+	}
+	assert.Equal(t, reqID, attrs["fastecho.request_id"])
+}
+
+// Start must not write into the caller's variadic opts backing array.
+func TestWorkerTracer_DoesNotMutateCallerOptsSlice(t *testing.T) {
+	tp := sdktrace.NewTracerProvider()
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+	s := &server{Logger: zap.NewNop(), Providers: &telemetry.Providers{TracerProvider: tp}}
+
+	var tr trace.Tracer
+	s.runWorkerOnce(t.Context(), "opts-worker", func(ctx context.Context) error {
+		tr, _ = fctx.TracerFrom(ctx)
+		return nil
+	})
+	require.NotNil(t, tr)
+
+	sentinel := trace.WithAttributes(attribute.Bool("sentinel", true))
+	backing := make([]trace.SpanStartOption, 2)
+	backing[0] = trace.WithSpanKind(trace.SpanKindInternal)
+	backing[1] = sentinel
+
+	_, span := tr.Start(t.Context(), "unit", backing[:1]...)
+	span.End()
+
+	assert.True(t, reflect.DeepEqual(sentinel, backing[1]),
+		"Start wrote into the caller's backing array beyond len")
+}
+
+func TestRunWorkerOnce_RecordsFailureMetric(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	failures, err := mp.Meter(telemetry.ScopeName).Int64Counter("fastecho.worker.failures")
+	require.NoError(t, err)
+
+	s := &server{
+		Logger:         zap.NewNop(),
+		Providers:      &telemetry.Providers{TracerProvider: tracenoop.NewTracerProvider()},
+		workerFailures: failures,
+	}
+	s.runWorkerOnce(t.Context(), "widget-worker", func(ctx context.Context) error {
+		return errors.New("boom")
+	})
+
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+
+	var got int64
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "fastecho.worker.failures" {
+				continue
+			}
+			for _, dp := range m.Data.(metricdata.Sum[int64]).DataPoints {
+				w, _ := dp.Attributes.Value("worker")
+				k, _ := dp.Attributes.Value("kind")
+				if w.AsString() == "widget-worker" && k.AsString() == "error" {
+					got += dp.Value
+				}
+			}
+		}
+	}
+	assert.Equal(t, int64(1), got, "error-exit bumps the worker failure counter, labelled worker+kind")
 }
 
 func TestRunWorkerRestartsAfterFailuresThenStabilizes(t *testing.T) {
@@ -241,7 +387,7 @@ func TestRunWorkerRestartsAfterFailuresThenStabilizes(t *testing.T) {
 		healthy := make(chan struct{})
 		ctx, cancel := context.WithCancel(context.Background())
 
-		go s.runWorker(ctx, func(ctx context.Context) error {
+		go s.runWorker(ctx, "test-worker", func(ctx context.Context) error {
 			if calls.Add(1) < 3 {
 				return errors.New("boom")
 			}
@@ -267,7 +413,7 @@ func TestRunWorkerRestartsAfterPanic(t *testing.T) {
 		healthy := make(chan struct{})
 		ctx, cancel := context.WithCancel(context.Background())
 
-		go s.runWorker(ctx, func(ctx context.Context) error {
+		go s.runWorker(ctx, "test-worker", func(ctx context.Context) error {
 			if calls.Add(1) == 1 {
 				panic("kaboom")
 			}
@@ -293,7 +439,7 @@ func TestRunWorkerRestartsAfterCleanReturn(t *testing.T) {
 		healthy := make(chan struct{})
 		ctx, cancel := context.WithCancel(context.Background())
 
-		go s.runWorker(ctx, func(ctx context.Context) error {
+		go s.runWorker(ctx, "test-worker", func(ctx context.Context) error {
 			if calls.Add(1) == 1 {
 				return nil
 			}
@@ -320,7 +466,7 @@ func TestRunWorkerStopsOnContextCancel(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		go func() {
-			s.runWorker(ctx, func(ctx context.Context) error {
+			s.runWorker(ctx, "test-worker", func(ctx context.Context) error {
 				close(running)
 				<-ctx.Done()
 				return ctx.Err()
@@ -349,7 +495,7 @@ func TestRunWorkerCancelDuringBackoffReturnsPromptly(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		go func() {
-			s.runWorker(ctx, func(ctx context.Context) error {
+			s.runWorker(ctx, "test-worker", func(ctx context.Context) error {
 				calls.Add(1)
 				close(failed)
 				return errors.New("boom")
@@ -377,7 +523,7 @@ func TestRunWorkerResetsBackoffAfterStableRun(t *testing.T) {
 		healthy := make(chan struct{})
 		ctx, cancel := context.WithCancel(context.Background())
 
-		go s.runWorker(ctx, func(ctx context.Context) error {
+		go s.runWorker(ctx, "test-worker", func(ctx context.Context) error {
 			switch calls.Add(1) {
 			case 1:
 				return errors.New("boom")
@@ -412,7 +558,7 @@ func TestRunWorkerEscalatesLogAfterCrashLoopThreshold(t *testing.T) {
 		healthy := make(chan struct{})
 		ctx, cancel := context.WithCancel(context.Background())
 
-		go s.runWorker(ctx, func(ctx context.Context) error {
+		go s.runWorker(ctx, "test-worker", func(ctx context.Context) error {
 			if calls.Add(1) <= 3 {
 				return errors.New("boom")
 			}

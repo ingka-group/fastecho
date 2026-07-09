@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package otel
+package telemetry
 
 import (
 	"context"
@@ -20,41 +20,40 @@ import (
 	"runtime"
 	"strings"
 
-	otelSDK "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/ingka-group/fastecho/fctx"
 )
 
-// StartSpan starts a child span named after the calling function and returns
-// the updated context and span. End the span with defer span.End().
-//
-// The span name is auto-discovered from the caller using runtime.Caller,
-// formatted as package.Type.Method (e.g. "forecast.Service.Recompute").
-//
-// Uses the global TracerProvider. If tracing is not configured, returns a
-// no-op span (safe to defer .End()).
-//
-// For custom span names, use the standard OTel API directly:
-//
-//	tracer := otel.Tracer("my-scope")
-//	ctx, span := tracer.Start(ctx, "custom-name")
-func StartSpan(ctx context.Context, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return otelSDK.Tracer(ScopeName).Start(ctx, callerName(1), opts...)
+// ScopeName is the instrumentation scope name for fastecho's own spans.
+const ScopeName = "github.com/ingka-group/fastecho/"
+
+// tracer returns the fctx-seeded tracer when present (a request or worker
+// context), else the global provider's — so spans from unseeded contexts
+// (background jobs, cron callbacks) still export when tracing is enabled.
+func tracer(ctx context.Context) trace.Tracer {
+	if t, ok := fctx.TracerFrom(ctx); ok {
+		return t
+	}
+	return otel.GetTracerProvider().Tracer(ScopeName)
 }
 
-// SpanFunc wraps a function call in a span with the given name. The span starts
-// before fn is called and ends after fn returns. Use this for tracing functions
-// that don't accept context.Context:
-//
-//	var result T
-//	otel.SpanFunc(ctx, "heavy-algorithm", func() {
-//	    result = computeHeavyAlgorithm(data)
-//	})
-//
-// If fn panics, the panic is recorded on the span and re-raised.
-// If tracing is not configured, fn is still called (no-op span).
+// StartSpan starts a child span named after the calling function (formatted as
+// package.Type.Method, e.g. "forecast.Service.Recompute") and returns the updated
+// context and span; end it with defer span.End(). It uses the fctx-seeded
+// tracer, falling back to the global provider. For a custom name, call SpanFunc
+// or the OTel tracer API directly.
+func StartSpan(ctx context.Context, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return tracer(ctx).Start(ctx, callerName(1), opts...)
+}
+
+// SpanFunc runs fn inside a span named name, for tracing work that has no
+// context.Context to thread. A panic in fn is recorded on the span and re-raised.
+// With tracing off, fn still runs under a no-op span.
 func SpanFunc(ctx context.Context, name string, fn func()) {
-	_, span := otelSDK.Tracer(ScopeName).Start(ctx, name)
+	_, span := tracer(ctx).Start(ctx, name)
 	defer span.End()
 	defer func() {
 		if r := recover(); r != nil {
@@ -75,13 +74,12 @@ func callerName(skip int) string {
 	}
 	name := runtime.FuncForPC(pc).Name()
 
-	// Strip module path: "github.com/ingka-group/myservice/internal/forecast.(*Service).Recompute"
-	// becomes "forecast.(*Service).Recompute"
+	// Strip the module path, leaving package.Type.Method.
 	if idx := strings.LastIndex(name, "/"); idx >= 0 {
 		name = name[idx+1:]
 	}
 
-	// Strip pointer receiver: "forecast.(*Service).Recompute" becomes "forecast.Service.Recompute"
+	// Strip pointer-receiver punctuation: "(*Service)" -> "Service".
 	name = strings.ReplaceAll(name, "(*", "")
 	name = strings.ReplaceAll(name, ")", "")
 
