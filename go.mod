@@ -1,6 +1,6 @@
 module github.com/ingka-group/fastecho
 
-go 1.25.7
+go 1.27.3
 
 require (
 	github.com/go-playground/validator/v10 v10.30.3
